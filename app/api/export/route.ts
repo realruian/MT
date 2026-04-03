@@ -1,14 +1,24 @@
 import { NextRequest } from "next/server";
-import { chromium, type Browser } from "playwright";
+import { chromium as playwrightChromium, type Browser } from "playwright-core";
+import chromium from "@sparticuz/chromium";
 
 let browserPromise: Promise<Browser> | null = null;
 
 function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    browserPromise = chromium.launch({
-      channel: "chrome",
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
+    const isLocal = process.env.NODE_ENV === "development";
+    browserPromise = isLocal
+      ? playwrightChromium.launch({
+          channel: "chrome",
+          args: ["--no-sandbox", "--disable-setuid-sandbox"],
+        })
+      : chromium.executablePath().then((executablePath) =>
+          playwrightChromium.launch({
+            args: chromium.args,
+            executablePath,
+            headless: chromium.headless,
+          })
+        );
     browserPromise.catch(() => {
       browserPromise = null;
     });
@@ -55,7 +65,7 @@ export async function POST(req: NextRequest) {
       ? await page.$(selector).then((el) => el ?? page)
       : page;
 
-    const screenshot = await (target as import("playwright").Page | import("playwright").ElementHandle).screenshot({
+    const screenshot = await (target as import("playwright-core").Page | import("playwright-core").ElementHandle).screenshot({
       type: "png",
       scale: "device",
     });
