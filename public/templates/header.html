@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'ZaoZiYuanHei';
+    src: url('/fonts/造字工房元黑体.ttf') format('truetype');
+  }
+  @font-face {
+    font-family: 'MeiTuanBold';
+    src: url('/fonts/Meituan Type-Bold.TTF') format('truetype');
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { margin: 0; background: transparent; }
+
+  .header {
+    position: relative;
+    width: 750px;
+    height: 810px;
+    overflow: hidden;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .text-wrap {
+    position: absolute;
+    top: 117px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    transform: rotate(-3deg);
+  }
+
+  .main-title {
+    font-family: 'ZaoZiYuanHei', 'MiSans', sans-serif;
+    font-size: 83px;
+    color: #ffffff;
+    white-space: nowrap;
+    line-height: 1.1;
+    transform: skewX(-8deg);
+  }
+
+  .sub-title {
+    margin-top: 8px;
+    font-family: 'MeiTuanBold', 'MiSans', sans-serif;
+    font-size: 34px;
+    font-weight: bold;
+    color: #000000;
+    white-space: nowrap;
+    line-height: 1.2;
+    transform: skewX(-8deg);
+  }
+</style>
+</head>
+<body>
+  <div class="header" id="banner">
+    <div class="text-wrap">
+      <div class="main-title" id="mainTitle">主标题文案</div>
+      <div class="sub-title" id="subTitle">副标题文案</div>
+    </div>
+  </div>
+  <script>
+    const banner = document.getElementById('banner');
+    const mainTitle = document.getElementById('mainTitle');
+    const subTitle = document.getElementById('subTitle');
+
+    var DEFAULT_BG = '/templates/background/hotpot.jpg';
+
+    function applyParams(params) {
+      if (params.get('mainTitle')) mainTitle.textContent = params.get('mainTitle');
+      if (params.get('subTitle')) subTitle.textContent = params.get('subTitle');
+      var bg = params.get('bgTemplate') || DEFAULT_BG;
+      banner.style.backgroundImage = 'url(' + bg + ')';
+      if (params.get('mainTitleColor')) mainTitle.style.color = params.get('mainTitleColor');
+      if (params.get('subTitleColor')) subTitle.style.color = params.get('subTitleColor');
+    }
+
+    // 初始化：从 URL 参数读取（无参数时使用默认背景）
+    applyParams(new URLSearchParams(window.location.search));
+
+    // 实时更新：监听来自编辑器的 postMessage
+    window.addEventListener('message', function(e) {
+      if (!e.data || e.data.type !== 'mtds:update') return;
+      applyParams(new URLSearchParams(e.data.search || ''));
+    });
+  </script>
+</body>
+</html>

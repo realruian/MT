@@ -1,5 +1,5 @@
-import { HomeMain } from "@/components/home-main";
-import { SidebarNav } from "@/components/sidebar-nav";
+import { HomeMain } from "@/components/home/home-main";
+import { SidebarNav } from "@/components/layout/sidebar-nav";
 
 export default function Home() {
   return (
@@ -33,9 +33,10 @@ export default function Home() {
             AI Creative
           </span>
         </div>
-        {/* 边栏 + 主内容 */}
-        <div className="flex flex-1">
-          <SidebarNav />
+        {/* 固定侧边栏 */}
+        <SidebarNav />
+        {/* 主内容（左侧留出侧边栏宽度） */}
+        <div className="flex flex-1 pl-[64px]">
           <HomeMain />
         </div>
       </div>
