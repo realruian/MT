@@ -58,6 +58,10 @@
   --animate-studio-enter: studio-enter 0.6s ease-out both;
 }
 
+html {
+  zoom: 1.25;
+}
+
 body {
   min-height: 100%;
 }
