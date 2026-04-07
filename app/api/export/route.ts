@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { chromium as playwrightChromium, type Browser } from "playwright-core";
+import puppeteer, { type Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 
 let browserPromise: Promise<Browser> | null = null;
@@ -8,16 +8,16 @@ function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     const isLocal = process.env.NODE_ENV === "development";
     browserPromise = isLocal
-      ? playwrightChromium.launch({
+      ? puppeteer.launch({
           channel: "chrome",
           args: ["--no-sandbox", "--disable-setuid-sandbox"],
         })
       : chromium.executablePath().then((executablePath) =>
-          playwrightChromium.launch({
+          puppeteer.launch({
             args: chromium.args,
             executablePath,
             headless: true,
-          })
+          }),
         );
     browserPromise.catch(() => {
       browserPromise = null;
@@ -41,20 +41,20 @@ export async function POST(req: NextRequest) {
     return new Response("Missing url/html, width, or height", { status: 400 });
   }
 
-  let page: import("playwright-core").Page | undefined;
+  let page: Awaited<ReturnType<Browser["newPage"]>> | undefined;
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
-    await page.setViewportSize({ width, height });
+    await page.setViewport({ width, height, deviceScaleFactor: 2 });
 
     const origin = req.nextUrl.origin;
 
     if (url) {
       const fullUrl = url.startsWith("http") ? url : `${origin}${url}`;
-      await page.goto(fullUrl, { waitUntil: "networkidle" });
+      await page.goto(fullUrl, { waitUntil: "networkidle0" });
     } else if (html) {
       await page.setContent(html, {
-        waitUntil: "networkidle",
+        waitUntil: "networkidle0",
       });
     }
 
@@ -64,10 +64,7 @@ export async function POST(req: NextRequest) {
     const el = selector ? await page.$(selector) : null;
     const target = el ?? page;
 
-    const screenshot = await target.screenshot({
-      type: "png",
-      scale: "device",
-    });
+    const screenshot = await target.screenshot({ type: "png" });
 
     return new Response(Buffer.from(screenshot), {
       headers: {
