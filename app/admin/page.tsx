@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2 } from "lucide-react";
+import { PsdManager } from "@/components/admin/psd-manager";
 
 const CATEGORIES = [
   "会场头图",
@@ -209,6 +210,7 @@ function emptyTemplate(): Partial<TemplateRow> {
 }
 
 export default function AdminPage() {
+  const [adminTab, setAdminTab] = useState<"html" | "psd">("psd");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [editing, setEditing] = useState<Partial<TemplateRow> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -234,7 +236,8 @@ export default function AdminPage() {
     try {
       const res = await fetch("/api/admin/templates");
       if (!res.ok) throw new Error(await res.text());
-      setTemplates(await res.json());
+      const all = await res.json();
+      setTemplates(all.filter((t: { template_type?: string }) => !t.template_type || t.template_type === "html"));
     } catch (err) {
       console.error(err);
       setDbReady(false);
@@ -462,7 +465,7 @@ export default function AdminPage() {
             首页
           </Link>
           <span className="h-4 w-px bg-gray-200" />
-          <h1 className="text-lg font-semibold text-gray-900">模板管理后台</h1>
+          <h1 className="text-lg font-semibold text-gray-900">管理后台</h1>
         </div>
         <div className="flex min-w-0 shrink items-center gap-3">
           {message && (
@@ -470,46 +473,138 @@ export default function AdminPage() {
               {message}
             </span>
           )}
-          <button
-            onClick={fetchTemplates}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
-          >
-            <RefreshCw className="size-3.5" />
-            刷新
-          </button>
-          <button
-            onClick={() => setEditing(emptyTemplate())}
-            className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
-          >
-            <Plus className="size-3.5" />
-            新增模板
-          </button>
+          
         </div>
       </header>
 
+      {/* Tab 切换栏 */}
+      <div className="border-b border-gray-200 bg-white">
+        <div className="mx-auto flex max-w-5xl gap-6 px-6">
+          {(["psd", "html"] as const).map((tab) => {
+            const active = adminTab === tab;
+            const label = tab === "html" ? "HTML 模板" : "PSD 模板";
+            return (
+              <button
+                key={tab}
+                onClick={() => setAdminTab(tab)}
+                className={[
+                  "border-b-2 py-3 text-sm font-medium transition-colors",
+                  active
+                    ? "border-gray-900 text-gray-900"
+                    : "border-transparent text-gray-400 hover:text-gray-600",
+                ].join(" ")}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* PSD Tab */}
+      {adminTab === "psd" && (
+        <div className="mx-auto max-w-5xl p-6">
+          <PsdManager />
+        </div>
+      )}
+
+      {/* HTML Tab */}
+      <div className={adminTab === "html" ? "" : "hidden"}>
       <div className="mx-auto max-w-5xl p-6">
-        {/* 模板列表 */}
-        {loading ? (
-          <p className="py-20 text-center text-sm text-gray-400">加载中...</p>
-        ) : templates.length === 0 && !editing ? (
-          <div className="flex flex-col items-center gap-4 py-20">
-            <p className="text-sm text-gray-400">暂无模板，点击上方"新增模板"开始添加</p>
+        {/* HTML 上传区 */}
+        {!editing && (
+          <div className="mb-6 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+            {htmlUploading ? (
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="size-8 animate-spin text-gray-400" />
+                <p className="text-sm text-gray-500">正在上传并解析 HTML 模板...</p>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer flex-col items-center gap-3">
+                <Upload className="size-8 text-gray-400" />
+                <p className="text-sm text-gray-600">点击选择 HTML 模板文件上传</p>
+                <p className="text-xs text-gray-400">支持 .html 格式，上传后自动识别宽高和可编辑字段</p>
+                <input
+                  type="file"
+                  accept=".html"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setHtmlUploading(true);
+                    try {
+                      const buf = await file.arrayBuffer();
+                      const text = new TextDecoder().decode(buf);
+                      setLastHtmlContent(text);
+                      const wMatch = text.match(/width:\s*(\d+)px/);
+                      const hMatch = text.match(/height:\s*(\d+)px/);
+                      const parsed = parseFieldsFromHtml(text);
+                      const uploadFile = new File([buf], file.name, { type: file.type || "text/html" });
+                      const result = await handleUpload(uploadFile, "templates");
+                      const newTpl = emptyTemplate();
+                      newTpl.name = file.name.replace(/\.html?$/i, "");
+                      if (wMatch) newTpl.width = Number(wMatch[1]);
+                      if (hMatch) newTpl.height = Number(hMatch[1]);
+                      if (result.ok) newTpl.html_file = result.url;
+                      if (parsed.texts.length || parsed.images.length) {
+                        newTpl.editable_fields = {
+                          ...(newTpl.editable_fields ?? { ...EMPTY_FIELDS }),
+                          texts: parsed.texts,
+                          images: parsed.images,
+                        };
+                      }
+                      setEditing(newTpl);
+                      const parts = ["HTML 已上传"];
+                      if (wMatch || hMatch) parts.push("宽高已解析");
+                      const fc = parsed.texts.length + parsed.images.length;
+                      if (fc > 0) parts.push(`识别到 ${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段`);
+                      const line = parts.join("；") + "。";
+                      setMessage(line);
+                      setFileNotice({ variant: "success", text: line });
+                    } catch (err) {
+                      setMessage(`HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+                    } finally {
+                      setHtmlUploading(false);
+                    }
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            )}
           </div>
+        )}
+
+        {/* 模板列表 */}
+        <div>
+        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+          <Upload className="size-4" />
+          已有 HTML 模板
+        </h3>
+        {loading ? (
+          <p className="py-10 text-center text-sm text-gray-400">加载中...</p>
+        ) : templates.length === 0 && !editing ? (
+          <p className="py-10 text-center text-sm text-gray-300">
+            暂无 HTML 模板，上传 HTML 文件开始创建
+          </p>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             {templates.map((tpl) => (
               <div key={tpl.id} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4">
-                {tpl.thumbnail && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={tpl.thumbnail} alt={tpl.name} className="h-16 w-24 rounded-lg object-cover" />
-                )}
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-900">{tpl.name}</p>
+                <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
+                  {tpl.thumbnail ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={tpl.thumbnail} alt={tpl.name} className="size-full object-cover" />
+                  ) : (
+                    <Upload className="size-6 text-gray-300" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-900">{tpl.name}</p>
                   <p className="text-xs text-gray-400">
-                    {tpl.category} · {tpl.width}×{tpl.height} · ID: {tpl.id}
+                    {tpl.category} · {tpl.width}×{tpl.height}
                   </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => setEditing({ ...tpl })}
                     className="rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-50"
@@ -527,6 +622,7 @@ export default function AdminPage() {
             ))}
           </div>
         )}
+        </div>
 
         {/* 字体管理 */}
         <details className="mt-6 rounded-xl border border-gray-200 bg-white">
@@ -1209,6 +1305,7 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

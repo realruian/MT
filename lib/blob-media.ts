@@ -1,5 +1,5 @@
 /** 允许经 /api/blob/media 代理读取的 Blob pathname 前缀（须与上传 folder 一致） */
-export const BLOB_MEDIA_PREFIXES = ["thumbnails/", "templates/", "uploads/", "fonts/"] as const;
+export const BLOB_MEDIA_PREFIXES = ["thumbnails/", "templates/", "uploads/", "fonts/", "psd-originals/", "psd-layers/"] as const;
 
 export function isAllowedBlobPathname(pathname: string): boolean {
   if (!pathname || pathname.includes("..") || pathname.startsWith("/")) {

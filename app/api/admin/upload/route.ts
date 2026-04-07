@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { put } from "@vercel/blob";
 import { clientBlobMediaUrl, isAllowedBlobPathname } from "@/lib/blob-media";
 
-const ALLOWED_FOLDERS = new Set(["thumbnails", "templates", "uploads", "fonts"]);
+const ALLOWED_FOLDERS = new Set(["thumbnails", "templates", "uploads", "fonts", "psd-originals", "psd-layers"]);
 
 function safeBasename(name: string): string {
   const base = name.replace(/^.*[/\\]/, "").replace(/\.\./g, "_");
