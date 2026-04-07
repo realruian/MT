@@ -46,3 +46,4 @@ next-env.d.ts
 /fonts
 /high.mp4
 /cursorrules
+.env*.local

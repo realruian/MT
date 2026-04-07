@@ -9,7 +9,9 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.0.2",
     "@sparticuz/chromium-min": "^143.0.4",
+    "@vercel/blob": "^2.3.3",
     "lucide-react": "^1.7.0",
     "next": "16.2.2",
     "puppeteer-core": "^24.40.0",

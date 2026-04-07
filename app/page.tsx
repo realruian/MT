@@ -1,7 +1,11 @@
 import { HomeMain } from "@/components/home/home-main";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { getAllTemplates } from "@/lib/templates-db";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const templates = await getAllTemplates();
   return (
     <div
       className="hero-section flex min-h-screen flex-col font-sans"
@@ -37,7 +41,7 @@ export default function Home() {
         <SidebarNav />
         {/* 主内容（左侧留出侧边栏宽度） */}
         <div className="flex flex-1 pl-[64px]">
-          <HomeMain />
+          <HomeMain templates={templates} />
         </div>
       </div>
     </div>

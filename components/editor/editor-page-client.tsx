@@ -4,7 +4,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import type { Template } from "@/types/template";
-import { generateTemplateHtml, buildTemplateUrl } from "@/lib/template-html";
+import { buildTemplateUrl } from "@/lib/template-html";
 import { TemplatePreview } from "./template-preview";
 import { EditPanel } from "./edit-panel";
 
@@ -36,23 +36,9 @@ export function EditorPageClient({ template }: { template: Template }) {
 
   const colorTheme = editableFields.colors[colorIndex]?.values ?? {};
 
-  /** 真实 HTML 文件模板使用 URL 参数注入，生成模板使用 HTML 字符串 */
-  const isFileTemplate = Boolean(template.htmlFile);
-
   const previewSrc = useMemo(
-    () =>
-      isFileTemplate
-        ? buildTemplateUrl(template, texts, colorTheme, images, textColors)
-        : undefined,
-    [isFileTemplate, template, texts, colorTheme, images, textColors],
-  );
-
-  const previewHtml = useMemo(
-    () =>
-      isFileTemplate
-        ? undefined
-        : generateTemplateHtml(template, texts, colorTheme, images, textColors),
-    [isFileTemplate, template, texts, colorTheme, images, textColors],
+    () => buildTemplateUrl(template, texts, colorTheme, images, textColors),
+    [template, texts, colorTheme, images, textColors],
   );
 
   const handleTextChange = useCallback((key: string, value: string) => {
@@ -89,17 +75,11 @@ export function EditorPageClient({ template }: { template: Template }) {
         }),
       );
 
-      const payload = isFileTemplate
-        ? {
-            url: buildTemplateUrl(template, texts, colorTheme, exportImages, textColors),
-            width: template.width,
-            height: template.height,
-          }
-        : {
-            html: generateTemplateHtml(template, texts, colorTheme, exportImages, textColors),
-            width: template.width,
-            height: template.height,
-          };
+      const payload = {
+        url: buildTemplateUrl(template, texts, colorTheme, exportImages, textColors),
+        width: template.width,
+        height: template.height,
+      };
 
       const res = await fetch("/api/export", {
         method: "POST",
@@ -125,7 +105,7 @@ export function EditorPageClient({ template }: { template: Template }) {
     } finally {
       setExporting(false);
     }
-  }, [template, isFileTemplate, texts, colorTheme, images, textColors]);
+  }, [template, texts, colorTheme, images, textColors]);
 
   const imageFieldsWithSrc = editableFields.images.map((f) => ({
     ...f,
@@ -157,7 +137,6 @@ export function EditorPageClient({ template }: { template: Template }) {
         <TemplatePreview
           ref={iframeRef}
           src={previewSrc}
-          html={previewHtml}
           width={template.width}
           height={template.height}
         />
