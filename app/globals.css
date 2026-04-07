@@ -60,10 +60,13 @@
 
 html {
   zoom: 1.25;
+  background-color: #f0f4ff;
+  overscroll-behavior: none;
 }
 
 body {
   min-height: 100%;
+  background-color: #f0f4ff;
 }
 
 .hero-section {
