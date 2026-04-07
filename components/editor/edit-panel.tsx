@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
-import { Download, Loader2, Upload } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Download, Loader2, Upload } from "lucide-react";
 
 interface EditPanelProps {
   texts: Record<string, string>;
@@ -22,6 +22,91 @@ const TEXT_COLORS = [
   { value: "#000000", label: "黑色" },
   { value: "#ffffff", label: "白色" },
 ];
+
+function ColorSwatch({
+  fieldKey,
+  currentColor,
+  onChange,
+}: {
+  fieldKey: string;
+  currentColor: string;
+  onChange: (key: string, color: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClick(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [open]);
+
+  const isWhite = currentColor === "#ffffff";
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className={[
+          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors",
+          open ? "bg-gray-100" : "hover:bg-gray-50",
+        ].join(" ")}
+      >
+        <span
+          className={[
+            "size-4 rounded",
+            isWhite ? "border border-gray-200" : "shadow-sm",
+          ].join(" ")}
+          style={{ backgroundColor: currentColor }}
+        />
+        <ChevronDown className="size-3 text-gray-400" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full z-20 mt-1.5 rounded-lg border border-gray-100 bg-white p-2 shadow-lg">
+          <p className="mb-1.5 px-1 text-[11px] font-medium text-gray-400">
+            文字颜色
+          </p>
+          <div className="flex gap-1.5">
+            {TEXT_COLORS.map((c) => {
+              const active = currentColor === c.value;
+              const white = c.value === "#ffffff";
+              return (
+                <button
+                  key={c.value}
+                  type="button"
+                  title={c.label}
+                  onClick={() => {
+                    onChange(fieldKey, c.value);
+                    setOpen(false);
+                  }}
+                  className={[
+                    "relative flex size-7 items-center justify-center rounded-md transition-all",
+                    white ? "border border-gray-200" : "",
+                    active ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110",
+                  ].join(" ")}
+                  style={{ backgroundColor: c.value }}
+                >
+                  {active && (
+                    <Check
+                      className="size-3.5"
+                      style={{ color: white ? "#000" : "#fff" }}
+                      strokeWidth={3}
+                    />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function EditPanel({
   texts,
@@ -56,36 +141,20 @@ export function EditPanel({
             <div className="flex flex-col gap-3">
               {textFields.map(({ key, label }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <span className="text-xs text-gray-400">{label}</span>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-400">{label}</span>
+                    <ColorSwatch
+                      fieldKey={key}
+                      currentColor={textColors[key] ?? "#000000"}
+                      onChange={onTextColorChange}
+                    />
+                  </div>
                   <input
                     type="text"
                     value={texts[key] ?? ""}
                     onChange={(e) => onTextChange(key, e.target.value)}
                     className="rounded-input border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-gray-400"
                   />
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] text-gray-300">颜色</span>
-                    {TEXT_COLORS.map((c) => {
-                      const active = textColors[key] === c.value;
-                      const isWhite = c.value === "#ffffff";
-                      return (
-                        <button
-                          key={c.value}
-                          type="button"
-                          title={c.label}
-                          onClick={() => onTextColorChange(key, c.value)}
-                          className={[
-                            "size-5 rounded-full transition-all",
-                            isWhite ? "border border-gray-200" : "",
-                            active
-                              ? "ring-1.5 ring-gray-400 ring-offset-1"
-                              : "opacity-60 hover:opacity-100",
-                          ].join(" ")}
-                          style={{ backgroundColor: c.value }}
-                        />
-                      );
-                    })}
-                  </div>
                 </div>
               ))}
             </div>
