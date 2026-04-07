@@ -1,6 +1,9 @@
 import { NextRequest } from "next/server";
 import puppeteer, { type Browser } from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
+
+const REMOTE_CHROMIUM_URL =
+  "https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar";
 
 let browserPromise: Promise<Browser> | null = null;
 
@@ -12,7 +15,7 @@ function getBrowser(): Promise<Browser> {
           channel: "chrome",
           args: ["--no-sandbox", "--disable-setuid-sandbox"],
         })
-      : chromium.executablePath().then((executablePath) =>
+      : chromium.executablePath(REMOTE_CHROMIUM_URL).then((executablePath) =>
           puppeteer.launch({
             args: chromium.args,
             executablePath,
@@ -58,7 +61,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 等字体加载完成
     await page.evaluate(() => document.fonts.ready);
 
     const el = selector ? await page.$(selector) : null;
