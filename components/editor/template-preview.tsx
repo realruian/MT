@@ -8,6 +8,8 @@ interface TemplatePreviewProps {
   html?: string;
   /** 传入 URL（真实 HTML 文件模式，含 query 参数） */
   src?: string;
+  /** 模板文件的 base URL（不含编辑参数），用于判断 iframe 是否需重新加载 */
+  templateBaseUrl?: string;
   width: number;
   height: number;
 }
@@ -15,7 +17,7 @@ interface TemplatePreviewProps {
 const PADDING = 200; // 容器内边距（上下 / 左右各 100px）
 
 export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProps>(
-  ({ html, src, width, height }, ref) => {
+  ({ html, src, templateBaseUrl, width, height }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const internalRef = useRef<HTMLIFrameElement>(null);
     const prevBaseUrlRef = useRef<string | undefined>(undefined);
@@ -86,6 +88,21 @@ export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProp
       doc.close();
     }, [html, src]);
 
+    /**
+     * 从完整 src 中拆出模板 base URL 和编辑器参数。
+     * 对 Blob 代理 URL（如 /api/blob/media?pathname=xxx&mainTitle=yyy），
+     * templateBaseUrl 包含 ?pathname=xxx 部分，编辑器参数是后面的 &key=val。
+     */
+    function splitSrc(fullSrc: string): { base: string; editorSearch: string } {
+      if (templateBaseUrl && fullSrc.startsWith(templateBaseUrl)) {
+        const rest = fullSrc.slice(templateBaseUrl.length).replace(/^[?&]/, "");
+        return { base: templateBaseUrl, editorSearch: rest };
+      }
+      const qIdx = fullSrc.indexOf("?");
+      if (qIdx < 0) return { base: fullSrc, editorSearch: "" };
+      return { base: fullSrc.slice(0, qIdx), editorSearch: fullSrc.slice(qIdx + 1) };
+    }
+
     // URL 模式（真实 HTML 文件模板）
     // 相同 base URL 时用 postMessage 实时更新，避免 iframe 重新加载
     useEffect(() => {
@@ -93,24 +110,24 @@ export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProp
       const iframe = internalRef.current;
       if (!iframe) return;
 
-      const [baseUrl, search = ""] = src.split("?");
+      const { base, editorSearch } = splitSrc(src);
       const prevBase = prevBaseUrlRef.current;
 
-      if (prevBase !== baseUrl || !isReadyRef.current) {
+      if (prevBase !== base || !isReadyRef.current) {
         isReadyRef.current = false;
-        prevBaseUrlRef.current = baseUrl;
+        prevBaseUrlRef.current = base;
         iframe.src = src;
       } else {
-        iframe.contentWindow?.postMessage({ type: "mtds:update", search }, "*");
+        iframe.contentWindow?.postMessage({ type: "mtds:update", search: editorSearch }, "*");
       }
-    }, [src]);
+    }, [src, templateBaseUrl]);
 
     // iframe 加载完成后标记 ready，并补推最新参数
     const handleLoad = () => {
       isReadyRef.current = true;
       if (!src) return;
-      const [, search = ""] = src.split("?");
-      internalRef.current?.contentWindow?.postMessage({ type: "mtds:update", search }, "*");
+      const { editorSearch } = splitSrc(src);
+      internalRef.current?.contentWindow?.postMessage({ type: "mtds:update", search: editorSearch }, "*");
     };
 
     return (

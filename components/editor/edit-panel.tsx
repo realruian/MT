@@ -141,14 +141,7 @@ export function EditPanel({
             <div className="flex flex-col gap-3">
               {textFields.map(({ key, label }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-gray-400">{label}</span>
-                    <ColorSwatch
-                      fieldKey={key}
-                      currentColor={textColors[key] ?? "#000000"}
-                      onChange={onTextColorChange}
-                    />
-                  </div>
+                  <span className="text-xs text-gray-400">{label}</span>
                   <input
                     type="text"
                     value={texts[key] ?? ""}

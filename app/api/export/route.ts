@@ -33,12 +33,13 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     url?: string;
     html?: string;
+    params?: Record<string, string>;
     width: number;
     height: number;
     selector?: string;
   };
 
-  const { url, html, width, height, selector = "#banner" } = body;
+  const { url, html, params, width, height, selector = "#banner" } = body;
 
   if ((!url && !html) || !width || !height) {
     return new Response("Missing url/html, width, or height", { status: 400 });
@@ -48,7 +49,7 @@ export async function POST(req: NextRequest) {
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
-    await page.setViewport({ width, height, deviceScaleFactor: 2 });
+    await page.setViewport({ width, height, deviceScaleFactor: 1 });
 
     const origin = req.nextUrl.origin;
 
@@ -59,6 +60,14 @@ export async function POST(req: NextRequest) {
       await page.setContent(html, {
         waitUntil: "networkidle0",
       });
+    }
+
+    if (params && Object.keys(params).length > 0) {
+      const searchStr = new URLSearchParams(params).toString();
+      await page.evaluate((s: string) => {
+        window.postMessage({ type: "mtds:update", search: s }, "*");
+      }, searchStr);
+      await page.waitForNetworkIdle({ idleTime: 500 }).catch(() => {});
     }
 
     await page.evaluate(() => document.fonts.ready);

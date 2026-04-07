@@ -56,7 +56,6 @@ export function EditorPageClient({ template }: { template: Template }) {
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      // blob URL 在服务端不可访问，导出前转成 base64 data URI
       const exportImages: Record<string, string> = {};
       await Promise.all(
         Object.entries(images).map(async ([key, src]) => {
@@ -75,8 +74,17 @@ export function EditorPageClient({ template }: { template: Template }) {
         }),
       );
 
+      const exportParams: Record<string, string> = {};
+      for (const [k, v] of Object.entries(texts)) { if (v) exportParams[k] = v; }
+      for (const [k, v] of Object.entries(exportImages)) { if (v) exportParams[k] = v; }
+      for (const [k, v] of Object.entries(textColors)) { if (v) exportParams[`${k}Color`] = v; }
+      for (const [k, v] of Object.entries(colorTheme)) {
+        if (k !== "primary" && v) exportParams[k] = v;
+      }
+
       const payload = {
-        url: buildTemplateUrl(template, texts, colorTheme, exportImages, textColors),
+        url: template.htmlFile,
+        params: exportParams,
         width: template.width,
         height: template.height,
       };
@@ -107,10 +115,16 @@ export function EditorPageClient({ template }: { template: Template }) {
     }
   }, [template, texts, colorTheme, images, textColors]);
 
-  const imageFieldsWithSrc = editableFields.images.map((f) => ({
-    ...f,
-    src: images[f.key] ?? f.defaultSrc,
-  }));
+  const colorManagedKeys = new Set(
+    editableFields.colors.flatMap((c) => Object.keys(c.values)),
+  );
+
+  const imageFieldsWithSrc = editableFields.images
+    .filter((f) => !colorManagedKeys.has(f.key))
+    .map((f) => ({
+      ...f,
+      src: images[f.key] ?? f.defaultSrc,
+    }));
 
   return (
     <div className="h-screen bg-white">
@@ -137,6 +151,7 @@ export function EditorPageClient({ template }: { template: Template }) {
         <TemplatePreview
           ref={iframeRef}
           src={previewSrc}
+          templateBaseUrl={template.htmlFile}
           width={template.width}
           height={template.height}
         />

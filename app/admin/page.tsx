@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles } from "lucide-react";
+import Link from "next/link";
+import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft } from "lucide-react";
 
 const CATEGORIES = [
   "会场头图",
@@ -48,8 +49,11 @@ function camelToLabel(key: string): string {
     description: "描述",
     price: "价格",
     btnText: "按钮文案",
-    bgTemplate: "背景图片",
-    bgImage: "背景图片",
+    bgTemplate: "背景图",
+    bgImage: "商品图",
+    bgColor: "背景色",
+    fontColor: "字体颜色",
+    btnColor: "按钮颜色",
     logo: "Logo",
     avatar: "头像",
     productImage: "商品图",
@@ -216,6 +220,8 @@ export default function AdminPage() {
     text: string;
   } | null>(null);
   const [lastHtmlContent, setLastHtmlContent] = useState("");
+  const [uploadedAssets, setUploadedAssets] = useState<{ name: string; url: string }[]>([]);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -238,6 +244,8 @@ export default function AdminPage() {
   useEffect(() => {
     setFileNotice(null);
     setLastHtmlContent("");
+    setUploadedAssets([]);
+    setCopiedUrl(null);
   }, [editing?.id]);
 
   async function handleInitDb() {
@@ -376,6 +384,53 @@ export default function AdminPage() {
     });
   }
 
+  function addColorScheme() {
+    const fields = editing?.editable_fields ?? EMPTY_FIELDS;
+    updateEditableFields({
+      ...fields,
+      colors: [...fields.colors, { name: "", values: { primary: "#666666" } }],
+    });
+  }
+
+  function removeColorScheme(idx: number) {
+    const fields = editing?.editable_fields ?? EMPTY_FIELDS;
+    updateEditableFields({
+      ...fields,
+      colors: fields.colors.filter((_, i) => i !== idx),
+    });
+  }
+
+  function updateColorScheme(idx: number, patch: Partial<EditableFields["colors"][number]>) {
+    const fields = editing?.editable_fields ?? EMPTY_FIELDS;
+    updateEditableFields({
+      ...fields,
+      colors: fields.colors.map((c, i) => (i === idx ? { ...c, ...patch } : c)),
+    });
+  }
+
+  function setColorSchemeValue(idx: number, key: string, value: string) {
+    const fields = editing?.editable_fields ?? EMPTY_FIELDS;
+    const scheme = fields.colors[idx];
+    if (!scheme) return;
+    updateColorScheme(idx, { values: { ...scheme.values, [key]: value } });
+  }
+
+  function removeColorSchemeValue(idx: number, key: string) {
+    const fields = editing?.editable_fields ?? EMPTY_FIELDS;
+    const scheme = fields.colors[idx];
+    if (!scheme) return;
+    const next = { ...scheme.values };
+    delete next[key];
+    updateColorScheme(idx, { values: next });
+  }
+
+  function copyToClipboard(text: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedUrl(text);
+      setTimeout(() => setCopiedUrl(null), 1500);
+    });
+  }
+
   if (!dbReady) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-gray-50">
@@ -395,7 +450,14 @@ export default function AdminPage() {
     <div className="min-h-screen bg-gray-50">
       {/* 顶栏 */}
       <header className="sticky top-0 z-10 flex items-center justify-between border-b border-gray-200 bg-white px-6 py-4">
-        <h1 className="text-lg font-semibold text-gray-900">模板管理后台</h1>
+        <div className="flex items-center gap-3">
+          <Link href="/" className="flex items-center gap-1 text-sm text-gray-400 transition-colors hover:text-gray-700">
+            <ArrowLeft className="size-4" />
+            首页
+          </Link>
+          <span className="h-4 w-px bg-gray-200" />
+          <h1 className="text-lg font-semibold text-gray-900">模板管理后台</h1>
+        </div>
         <div className="flex min-w-0 shrink items-center gap-3">
           {message && (
             <span className="max-w-[min(320px,45vw)] shrink-0 truncate text-xs text-gray-600" title={message}>
@@ -810,6 +872,199 @@ export default function AdminPage() {
                   </button>
                 </div>
               ))}
+            </div>
+
+            {/* 素材上传区 */}
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700">素材上传</span>
+                <label className="flex cursor-pointer items-center gap-1 text-xs text-blue-500 hover:text-blue-600">
+                  <ImagePlus className="size-3" />
+                  上传图片
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={async (e) => {
+                      const files = e.target.files;
+                      if (!files || files.length === 0) return;
+                      for (const file of Array.from(files)) {
+                        try {
+                          const result = await handleUpload(file, "uploads");
+                          if (result.ok) {
+                            setUploadedAssets((prev) => [
+                              ...prev,
+                              { name: file.name, url: result.url },
+                            ]);
+                          } else {
+                            setFileNotice({ variant: "error", text: `${file.name} 上传失败：${result.error}` });
+                          }
+                        } catch (err) {
+                          setFileNotice({ variant: "error", text: `${file.name} 上传失败：${err instanceof Error ? err.message : "网络错误"}` });
+                        }
+                      }
+                      e.target.value = "";
+                      if (files.length > 0) {
+                        setFileNotice({ variant: "success", text: `已上传 ${files.length} 个素材文件。点击 URL 旁的复制按钮可复制链接。` });
+                      }
+                    }}
+                  />
+                </label>
+              </div>
+              {uploadedAssets.length === 0 ? (
+                <p className="py-2 text-center text-xs text-gray-300">
+                  上传背景图等素材，获取 URL 用于配色方案
+                </p>
+              ) : (
+                <div className="space-y-1.5">
+                  {uploadedAssets.map((asset, i) => (
+                    <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5">
+                      <span className="shrink-0 text-xs text-gray-500 w-24 truncate" title={asset.name}>
+                        {asset.name}
+                      </span>
+                      <input
+                        readOnly
+                        value={asset.url}
+                        className="min-w-0 flex-1 bg-transparent text-xs text-gray-600 outline-none"
+                        onFocus={(e) => e.target.select()}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(asset.url)}
+                        className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+                        title="复制 URL"
+                      >
+                        {copiedUrl === asset.url ? (
+                          <Check className="size-3 text-emerald-500" />
+                        ) : (
+                          <Copy className="size-3" />
+                        )}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 配色方案 */}
+            <div className="mt-6">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-gray-700">配色方案</span>
+                <button onClick={addColorScheme} className="flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600">
+                  <Plus className="size-3" /> 添加方案
+                </button>
+              </div>
+              {(editing.editable_fields?.colors ?? []).length === 0 && (
+                <p className="py-2 text-center text-xs text-gray-300">
+                  暂无配色方案。添加后用户可在编辑器中切换不同风格。
+                </p>
+              )}
+              {(editing.editable_fields?.colors ?? []).map((scheme, schemeIdx) => {
+                const valueKeys = Object.keys(scheme.values);
+                return (
+                  <div key={schemeIdx} className="mb-3 rounded-lg border border-gray-200 bg-gray-50 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={scheme.values.primary || "#666666"}
+                        onChange={(e) => setColorSchemeValue(schemeIdx, "primary", e.target.value)}
+                        className="size-7 shrink-0 cursor-pointer rounded border border-gray-200"
+                        title="展示色（编辑器色块）"
+                      />
+                      <input
+                        value={scheme.name}
+                        onChange={(e) => updateColorScheme(schemeIdx, { name: e.target.value })}
+                        className="flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs outline-none focus:border-gray-400"
+                        placeholder="方案名称（如：热辣红）"
+                      />
+                      <button
+                        onClick={() => removeColorScheme(schemeIdx)}
+                        className="text-red-300 hover:text-red-500"
+                        title="删除此方案"
+                      >
+                        <Trash2 className="size-3.5" />
+                      </button>
+                    </div>
+
+                    {valueKeys
+                      .filter((k) => k !== "primary")
+                      .map((k) => (
+                        <div key={k} className="mb-1.5 flex items-center gap-2">
+                          <span className="w-28 shrink-0 truncate text-xs text-gray-500" title={k}>
+                            {camelToLabel(k)}（{k}）
+                          </span>
+                          <input
+                            value={scheme.values[k] ?? ""}
+                            onChange={(e) => setColorSchemeValue(schemeIdx, k, e.target.value)}
+                            className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs outline-none focus:border-gray-400"
+                            placeholder="值"
+                          />
+                          <label className="flex shrink-0 cursor-pointer items-center rounded border border-gray-200 bg-white p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600" title="上传图片作为值">
+                            <Upload className="size-3" />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const result = await handleUpload(file, "uploads");
+                                if (result.ok) {
+                                  setColorSchemeValue(schemeIdx, k, result.url);
+                                } else {
+                                  setFileNotice({ variant: "error", text: `上传失败：${result.error}` });
+                                }
+                                e.target.value = "";
+                              }}
+                            />
+                          </label>
+                          <button
+                            onClick={() => removeColorSchemeValue(schemeIdx, k)}
+                            className="text-red-300 hover:text-red-500"
+                            title="删除此参数"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
+                      ))}
+
+                    <div className="mt-2 flex items-center gap-2">
+                      <select
+                        className="flex-1 rounded border border-dashed border-gray-300 bg-white px-2 py-1 text-xs text-gray-500 outline-none"
+                        value=""
+                        onChange={(e) => {
+                          const key = e.target.value;
+                          if (key && !scheme.values[key]) {
+                            setColorSchemeValue(schemeIdx, key, "");
+                          }
+                        }}
+                      >
+                        <option value="">+ 添加参数…</option>
+                        {(editing.editable_fields?.images ?? [])
+                          .map((f) => ({ key: f.key, label: f.label || camelToLabel(f.key) }))
+                          .filter(({ key }) => !scheme.values[key])
+                          .map(({ key, label }) => (
+                            <option key={key} value={key}>{label}（{key}）</option>
+                          ))}
+                        {(editing.editable_fields?.texts ?? [])
+                          .map((f) => ({ key: f.key, label: f.label || camelToLabel(f.key) }))
+                          .filter(({ key }) => !scheme.values[key])
+                          .map(({ key, label }) => (
+                            <option key={key} value={key}>{label}（{key}）</option>
+                          ))}
+                        {[
+                          { key: "fontColor", label: "字体颜色" },
+                          { key: "bgColor", label: "背景色" },
+                          { key: "btnColor", label: "按钮颜色" },
+                        ].filter(({ key }) => !scheme.values[key]).map(({ key, label }) => (
+                          <option key={key} value={key}>{label}（{key}）</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
             {/* 操作按钮 */}

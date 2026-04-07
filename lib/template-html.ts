@@ -14,10 +14,6 @@ export function buildTemplateUrl(
   for (const [key, val] of Object.entries(texts)) {
     if (val) params.set(key, val);
   }
-  // 颜色参数（排除 primary，primary 仅用于面板色块展示）
-  for (const [key, val] of Object.entries(colorTheme)) {
-    if (key !== "primary" && val) params.set(key, val);
-  }
   for (const [key, val] of Object.entries(images)) {
     if (val) params.set(key, val);
   }
@@ -25,6 +21,10 @@ export function buildTemplateUrl(
     for (const [key, val] of Object.entries(textColors)) {
       if (val) params.set(`${key}Color`, val);
     }
+  }
+  // 配色方案最后处理，优先级最高（可覆盖图片默认值等）
+  for (const [key, val] of Object.entries(colorTheme)) {
+    if (key !== "primary" && val) params.set(key, val);
   }
   const base = template.htmlFile ?? "";
   const qs = params.toString();
