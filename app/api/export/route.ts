@@ -16,7 +16,7 @@ function getBrowser(): Promise<Browser> {
           playwrightChromium.launch({
             args: chromium.args,
             executablePath,
-            headless: chromium.headless,
+            headless: true,
           })
         );
     browserPromise.catch(() => {
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     return new Response("Missing url/html, width, or height", { status: 400 });
   }
 
-  let page;
+  let page: import("playwright-core").Page | undefined;
   try {
     const browser = await getBrowser();
     page = await browser.newPage();
@@ -61,16 +61,15 @@ export async function POST(req: NextRequest) {
     // 等字体加载完成
     await page.evaluate(() => document.fonts.ready);
 
-    const target = selector
-      ? await page.$(selector).then((el) => el ?? page)
-      : page;
+    const el = selector ? await page.$(selector) : null;
+    const target = el ?? page;
 
-    const screenshot = await (target as import("playwright-core").Page | import("playwright-core").ElementHandle).screenshot({
+    const screenshot = await target.screenshot({
       type: "png",
       scale: "device",
     });
 
-    return new Response(screenshot, {
+    return new Response(Buffer.from(screenshot), {
       headers: {
         "Content-Type": "image/png",
         "Content-Disposition": "attachment; filename=template.png",

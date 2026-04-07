@@ -28,7 +28,7 @@ export function EditorPageClient({ template }: { template: Template }) {
 
   const [textColors, setTextColors] = useState<Record<string, string>>(() => {
     const init: Record<string, string> = {};
-    for (const f of editableFields.texts) init[f.key] = "#000000";
+    for (const f of editableFields.texts) init[f.key] = f.defaultColor ?? "#000000";
     return init;
   });
 
@@ -70,14 +70,33 @@ export function EditorPageClient({ template }: { template: Template }) {
   const handleExport = useCallback(async () => {
     setExporting(true);
     try {
+      // blob URL 在服务端不可访问，导出前转成 base64 data URI
+      const exportImages: Record<string, string> = {};
+      await Promise.all(
+        Object.entries(images).map(async ([key, src]) => {
+          if (src.startsWith("blob:")) {
+            const resp = await fetch(src);
+            const blob = await resp.blob();
+            const dataUrl = await new Promise<string>((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result as string);
+              reader.readAsDataURL(blob);
+            });
+            exportImages[key] = dataUrl;
+          } else {
+            exportImages[key] = src;
+          }
+        }),
+      );
+
       const payload = isFileTemplate
         ? {
-            url: buildTemplateUrl(template, texts, colorTheme, images, textColors),
+            url: buildTemplateUrl(template, texts, colorTheme, exportImages, textColors),
             width: template.width,
             height: template.height,
           }
         : {
-            html: generateTemplateHtml(template, texts, colorTheme, images, textColors),
+            html: generateTemplateHtml(template, texts, colorTheme, exportImages, textColors),
             width: template.width,
             height: template.height,
           };

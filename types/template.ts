@@ -1,5 +1,5 @@
 export interface EditableFields {
-  texts: { key: string; label: string; defaultValue: string }[];
+  texts: { key: string; label: string; defaultValue: string; defaultColor?: string }[];
   colors: { name: string; values: Record<string, string> }[];
   images: { key: string; label: string; defaultSrc: string }[];
 }

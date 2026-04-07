@@ -14,8 +14,8 @@ export const templates: Template[] = [
     htmlFile: "/templates/header.html",
     editableFields: {
       texts: [
-        { key: "mainTitle", label: "主标题", defaultValue: "主标题文案" },
-        { key: "subTitle", label: "副标题", defaultValue: "副标题文案" },
+        { key: "mainTitle", label: "主标题", defaultValue: "主标题文案", defaultColor: "#ffffff" },
+        { key: "subTitle", label: "副标题", defaultValue: "副标题文案", defaultColor: "#000000" },
       ],
       colors: [],
       images: [
