@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, Loader2, Upload, Type, ImageIcon, Lock } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Upload, Type, ImageIcon, Lock, Undo2, Redo2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
 
 const KNOWN_FONTS: Record<string, string> = {
@@ -37,7 +37,11 @@ export function PsdEditor({ template }: { template: Template }) {
   const [scale, setScale] = useState(0.5);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
+  const [uploadingLayer, setUploadingLayer] = useState<string | null>(null);
   const dragStartRef = useRef({ mx: 0, my: 0, lx: 0, ly: 0 });
+  const historyRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
+  const futureRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
+  const MAX_HISTORY = 50;
 
   const cw = template.canvasWidth ?? template.width;
   const ch = template.canvasHeight ?? template.height;
@@ -48,9 +52,52 @@ export function PsdEditor({ template }: { template: Template }) {
     return layer[key];
   }
 
+  function pushHistory() {
+    const snapshot = JSON.parse(JSON.stringify(editState));
+    historyRef.current.push(snapshot);
+    if (historyRef.current.length > MAX_HISTORY) {
+      historyRef.current.shift();
+    }
+    futureRef.current = [];
+  }
+
   function updateLayer(id: string, updates: Partial<PsdLayer>) {
+    pushHistory();
     setEditState((prev) => ({ ...prev, [id]: { ...prev[id], ...updates } }));
   }
+
+  const handleUndo = useCallback(() => {
+    if (historyRef.current.length === 0) return;
+    const snapshot = JSON.parse(JSON.stringify(editState));
+    futureRef.current.push(snapshot);
+    const prev = historyRef.current.pop()!;
+    setEditState(prev);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editState]);
+
+  const handleRedo = useCallback(() => {
+    if (futureRef.current.length === 0) return;
+    const snapshot = JSON.parse(JSON.stringify(editState));
+    historyRef.current.push(snapshot);
+    const next = futureRef.current.pop()!;
+    setEditState(next);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editState]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      }
+      if ((e.metaKey || e.ctrlKey) && (e.key === "y" || (e.key === "z" && e.shiftKey))) {
+        e.preventDefault();
+        handleRedo();
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleUndo, handleRedo]);
 
   function getLayerPos(layer: PsdLayer) {
     const o = editState[layer.id];
@@ -63,7 +110,8 @@ export function PsdEditor({ template }: { template: Template }) {
   function handleDragStart(layerId: string, layer: PsdLayer, e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
-    if (layer.locked) return;
+    if (layer.locked === true || String(layer.locked) === "true") return;
+    pushHistory();
     setSelectedLayer(layerId);
     setDragging(layerId);
     const pos = getLayerPos(layer);
@@ -76,10 +124,14 @@ export function PsdEditor({ template }: { template: Template }) {
       e.preventDefault();
       const dx = (e.clientX - dragStartRef.current.mx) / scale;
       const dy = (e.clientY - dragStartRef.current.my) / scale;
-      updateLayer(dragging!, {
-        x: Math.round(dragStartRef.current.lx + dx),
-        y: Math.round(dragStartRef.current.ly + dy),
-      });
+      setEditState((prev) => ({
+        ...prev,
+        [dragging!]: {
+          ...prev[dragging!],
+          x: Math.round(dragStartRef.current.lx + dx),
+          y: Math.round(dragStartRef.current.ly + dy),
+        },
+      }));
     }
     function onUp() {
       setDragging(null);
@@ -173,6 +225,7 @@ export function PsdEditor({ template }: { template: Template }) {
   }
 
   async function handleImageReplace(layerId: string, file: File) {
+    setUploadingLayer(layerId);
     try {
       const form = new FormData();
       form.append("file", file);
@@ -182,7 +235,9 @@ export function PsdEditor({ template }: { template: Template }) {
       if (res.ok) {
         updateLayer(layerId, { imageUrl: data.url });
       }
-    } catch { /* ignore */ }
+    } catch { /* ignore */ } finally {
+      setUploadingLayer(null);
+    }
   }
 
   const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
@@ -190,12 +245,8 @@ export function PsdEditor({ template }: { template: Template }) {
   const editableLayers = layers
     .filter((l) => {
       const type = getVal(l, "layerType");
-      return (type === "text" || type === "image") && !l.locked;
+      return type === "text" || type === "image";
     })
-    .sort((a, b) => b.zIndex - a.zIndex);
-
-  const lockedLayers = layers
-    .filter((l) => l.locked && l.layerType !== "background")
     .sort((a, b) => b.zIndex - a.zIndex);
 
   return (
@@ -291,7 +342,7 @@ export function PsdEditor({ template }: { template: Template }) {
                         overflow: "visible",
                         transform: rot ? `rotate(${rot}deg)` : undefined,
                         transformOrigin: "left top",
-                        cursor: layer.locked ? "default" : isDrag ? "grabbing" : "grab",
+                        cursor: (layer.locked === true || String(layer.locked) === "true") ? "default" : isDrag ? "grabbing" : "grab",
                         userSelect: "none",
                       }}
                     >
@@ -314,7 +365,7 @@ export function PsdEditor({ template }: { template: Template }) {
                         width: layer.width,
                         height: layer.height,
                         zIndex: layer.zIndex,
-                        cursor: layer.locked ? "default" : isDrag ? "grabbing" : "grab",
+                        cursor: (layer.locked === true || String(layer.locked) === "true") ? "default" : isDrag ? "grabbing" : "grab",
                         userSelect: "none",
                         transform: imgRot ? `rotate(${imgRot}deg)` : undefined,
                         transformOrigin: "left top",
@@ -333,6 +384,19 @@ export function PsdEditor({ template }: { template: Template }) {
                           pointerEvents: "none",
                         }}
                       />
+                      {uploadingLayer === layer.id && (
+                        <div style={{
+                          position: "absolute",
+                          inset: 0,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          background: "rgba(0,0,0,0.4)",
+                          borderRadius: 4,
+                        }}>
+                          <Loader2 className="size-6 animate-spin text-white" />
+                        </div>
+                      )}
                     </div>
                   );
                 }
@@ -367,10 +431,29 @@ export function PsdEditor({ template }: { template: Template }) {
             </div>
           </div>
         )}
-        <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 rounded-full bg-white px-4 py-2 shadow-sm">
+        <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 flex items-center gap-3 rounded-full bg-white px-4 py-2 shadow-sm">
           <span className="text-xs text-gray-400">
             {cw} × {ch} · {Math.round(scale * 100)}%
           </span>
+          <span className="h-3 w-px bg-gray-200" />
+          <button
+            type="button"
+            onClick={handleUndo}
+            disabled={historyRef.current.length === 0}
+            title="撤销 (Ctrl+Z)"
+            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+          >
+            <Undo2 className="size-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleRedo}
+            disabled={futureRef.current.length === 0}
+            title="重做 (Ctrl+Shift+Z)"
+            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+          >
+            <Redo2 className="size-3.5" />
+          </button>
         </div>
       </div>
 
@@ -406,29 +489,32 @@ export function PsdEditor({ template }: { template: Template }) {
                   <span className="truncate text-sm font-medium text-gray-700">
                     {layer.name}
                   </span>
-                  {isSel && <span className="ml-auto text-[10px] text-blue-500">已选中</span>}
+                  {(layer.locked === true || String(layer.locked) === "true") && <span title="位置已锁定" className="ml-auto"><Lock className="size-3 text-amber-400" /></span>}
+                  {isSel && !(layer.locked === true || String(layer.locked) === "true") && <span className="ml-auto text-[10px] text-blue-500">已选中</span>}
                 </div>
 
-                <div className="mb-3 grid grid-cols-2 gap-2">
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400">X</span>
-                    <input
-                      type="number"
-                      value={pos.x}
-                      onChange={(e) => updateLayer(layer.id, { x: Number(e.target.value) })}
-                      className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
-                    />
+                {!(layer.locked === true || String(layer.locked) === "true") && (
+                  <div className="mb-3 grid grid-cols-2 gap-2">
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-gray-400">X</span>
+                      <input
+                        type="number"
+                        value={pos.x}
+                        onChange={(e) => updateLayer(layer.id, { x: Number(e.target.value) })}
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <span className="text-xs text-gray-400">Y</span>
+                      <input
+                        type="number"
+                        value={pos.y}
+                        onChange={(e) => updateLayer(layer.id, { y: Number(e.target.value) })}
+                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
+                      />
+                    </div>
                   </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs text-gray-400">Y</span>
-                    <input
-                      type="number"
-                      value={pos.y}
-                      onChange={(e) => updateLayer(layer.id, { y: Number(e.target.value) })}
-                      className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
-                    />
-                  </div>
-                </div>
+                )}
 
                 {type === "text" && (
                   <div className="flex flex-col gap-3">
@@ -487,9 +573,14 @@ export function PsdEditor({ template }: { template: Template }) {
                         />
                       </div>
                     )}
-                    <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-500 transition-colors hover:bg-gray-50">
-                      <Upload className="size-3.5" />
-                      替换图片
+                    <label className={[
+                      "flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs transition-colors",
+                      uploadingLayer === layer.id
+                        ? "pointer-events-none opacity-50 text-gray-400"
+                        : "cursor-pointer text-gray-500 hover:bg-gray-50",
+                    ].join(" ")}>
+                      {uploadingLayer === layer.id ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                      {uploadingLayer === layer.id ? "上传中..." : "替换图片"}
                       <input
                         type="file"
                         accept="image/*"
@@ -507,17 +598,6 @@ export function PsdEditor({ template }: { template: Template }) {
             );
           })}
 
-          {lockedLayers.length > 0 && (
-            <div className="border-t border-gray-100 px-5 py-3">
-              <p className="mb-2 text-[10px] font-medium uppercase tracking-wider text-gray-300">已锁定</p>
-              {lockedLayers.map((layer) => (
-                <div key={layer.id} className="flex items-center gap-2 py-1.5 opacity-50">
-                  <Lock className="size-3 text-amber-400" />
-                  <span className="truncate text-xs text-gray-400">{layer.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
 
         {/* 导出按钮 */}

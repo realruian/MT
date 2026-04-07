@@ -87,8 +87,12 @@ function extractTextInfo(layer: Layer): ParsedTextInfo | undefined {
   const td = layer.text;
   if (!td) return undefined;
 
-  const style = td.style;
-  const paragraphStyle = td.paragraphStyle;
+  const baseStyle = td.style ?? {};
+  const runStyle = td.styleRuns?.[0]?.style ?? {};
+  const style = { ...baseStyle, ...Object.fromEntries(
+    Object.entries(runStyle).filter(([, v]) => v !== undefined && v !== null),
+  ) } as typeof baseStyle;
+  const paragraphStyle = td.paragraphStyleRuns?.[0]?.style ?? td.paragraphStyle;
 
   let color: string | undefined;
   if (style?.fillColor && isRgbLike(style.fillColor)) {
