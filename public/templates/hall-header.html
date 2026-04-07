@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<style>
+  @font-face {
+    font-family: 'FZShengDa';
+    src: url('/api/fonts/molly/FZShengSKSJW_Da.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  @font-face {
+    font-family: 'FZShengZhong';
+    src: url('/api/fonts/molly/FZShengSKSJW_Zhong.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: transparent;
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .header {
+    position: relative;
+    width: 750px;
+    height: 810px;
+    overflow: hidden;
+    background-color: #f5cdd0;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+
+  .text-area {
+    position: absolute;
+    top: 100px;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    z-index: 2;
+  }
+
+  .main-title {
+    font-family: 'FZShengDa', sans-serif;
+    font-size: 72px;
+    font-weight: normal;
+    color: #5c1a1a;
+    line-height: 1.15;
+    letter-spacing: 2px;
+  }
+
+  .sub-title {
+    font-family: 'FZShengZhong', sans-serif;
+    font-size: 36px;
+    font-weight: normal;
+    color: #5c1a1a;
+    line-height: 1.2;
+    margin-top: 12px;
+    letter-spacing: 1px;
+  }
+
+  .product-image {
+    position: absolute;
+    bottom: 60px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 520px;
+    height: auto;
+    max-height: 480px;
+    object-fit: contain;
+    z-index: 1;
+  }
+</style>
+</head>
+<body>
+  <div class="header" id="banner">
+    <div class="text-area">
+      <div class="main-title" id="mainTitle">限时抢联名套餐</div>
+      <div class="sub-title" id="subTitle">赢大唐花与器限定冰箱贴</div>
+    </div>
+    <img class="product-image" id="productImage" src="" alt="" />
+  </div>
+
+<script>
+  var banner = document.getElementById('banner');
+  var mainTitleEl = document.getElementById('mainTitle');
+  var subTitleEl = document.getElementById('subTitle');
+  var imgEl = document.getElementById('productImage');
+
+  function applyParams(params) {
+    var mainTitle = params.get('mainTitle');
+    var subTitle = params.get('subTitle');
+    var productImage = params.get('productImage');
+    var bgTemplate = params.get('bgTemplate');
+    var fontColor = params.get('fontColor');
+
+    if (mainTitle) mainTitleEl.textContent = mainTitle;
+    if (subTitle) subTitleEl.textContent = subTitle;
+
+    if (fontColor) {
+      mainTitleEl.style.color = fontColor;
+      subTitleEl.style.color = fontColor;
+    }
+
+    if (bgTemplate) {
+      banner.style.backgroundImage = 'url(' + bgTemplate + ')';
+      banner.style.backgroundColor = 'transparent';
+    }
+
+    if (productImage) {
+      imgEl.src = productImage;
+      imgEl.style.display = 'block';
+      imgEl.onerror = function() { this.style.display = 'none'; };
+    } else if (!imgEl.src || imgEl.src === window.location.href) {
+      imgEl.style.display = 'none';
+    }
+  }
+
+  applyParams(new URLSearchParams(window.location.search));
+
+  window.addEventListener('message', function(e) {
+    if (!e.data || e.data.type !== 'mtds:update') return;
+    applyParams(new URLSearchParams(e.data.search || ''));
+  });
+</script>
+</body>
+</html>

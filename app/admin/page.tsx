@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft } from "lucide-react";
+import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2 } from "lucide-react";
 
 const CATEGORIES = [
   "会场头图",
@@ -220,8 +220,14 @@ export default function AdminPage() {
     text: string;
   } | null>(null);
   const [lastHtmlContent, setLastHtmlContent] = useState("");
+  const [thumbUploading, setThumbUploading] = useState(false);
+  const [htmlUploading, setHtmlUploading] = useState(false);
   const [uploadedAssets, setUploadedAssets] = useState<{ name: string; url: string }[]>([]);
+  const [assetUploading, setAssetUploading] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+  const [uploadedFonts, setUploadedFonts] = useState<{ name: string; url: string; folder: string }[]>([]);
+  const [fontFolder, setFontFolder] = useState("");
+  const [fontUploading, setFontUploading] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -522,6 +528,101 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* 字体管理 */}
+        <details className="mt-6 rounded-xl border border-gray-200 bg-white">
+          <summary className="cursor-pointer px-6 py-4 text-sm font-semibold text-gray-900 select-none">
+            字体管理
+          </summary>
+          <div className="border-t border-gray-100 px-6 py-4">
+            <div className="mb-3 flex items-center gap-3">
+              <input
+                value={fontFolder}
+                onChange={(e) => setFontFolder(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ""))}
+                className="w-36 rounded-lg border border-gray-200 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
+                placeholder="子文件夹（如 molly）"
+              />
+              <label className={[
+                "flex cursor-pointer items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs transition-colors",
+                fontUploading ? "pointer-events-none opacity-50" : "text-gray-500 hover:bg-gray-50",
+              ].join(" ")}>
+                <Upload className="size-3.5" />
+                {fontUploading ? "上传中…" : "选择字体文件"}
+                <input
+                  type="file"
+                  accept=".ttf,.otf,.woff,.woff2"
+                  multiple
+                  className="hidden"
+                  onChange={async (e) => {
+                    const files = e.target.files;
+                    if (!files || files.length === 0) return;
+                    setFontUploading(true);
+                    const folder = fontFolder ? `fonts/${fontFolder}` : "fonts";
+                    for (const file of Array.from(files)) {
+                      try {
+                        const form = new FormData();
+                        form.append("file", file);
+                        form.append("folder", folder);
+                        const res = await fetch("/api/admin/upload", { method: "POST", body: form });
+                        const data = await res.json();
+                        if (res.ok) {
+                          const cleanPath = fontFolder ? `${fontFolder}/${file.name}` : file.name;
+                          setUploadedFonts((prev) => [
+                            ...prev,
+                            { name: file.name, url: `/api/fonts/${cleanPath}`, folder: fontFolder || "(根)" },
+                          ]);
+                        } else {
+                          setMessage(`字体上传失败：${data.error}`);
+                        }
+                      } catch (err) {
+                        setMessage(`字体上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+                      }
+                    }
+                    setFontUploading(false);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </div>
+            <p className="mb-3 text-xs text-gray-400">
+              上传后在 HTML 模板中用 <code className="rounded bg-gray-100 px-1">url(&apos;/api/fonts/子文件夹/字体名.ttf&apos;)</code> 引用
+            </p>
+            {uploadedFonts.length === 0 ? (
+              <p className="py-3 text-center text-xs text-gray-300">暂无已上传字体</p>
+            ) : (
+              <div className="space-y-1.5">
+                {uploadedFonts.map((f, i) => (
+                  <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5">
+                    <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500">
+                      {f.folder}
+                    </span>
+                    <span className="shrink-0 text-xs text-gray-600 w-40 truncate" title={f.name}>
+                      {f.name}
+                    </span>
+                    <input
+                      readOnly
+                      value={f.url}
+                      className="min-w-0 flex-1 bg-transparent text-xs text-gray-500 outline-none"
+                      onFocus={(e) => e.target.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(f.url)}
+                      className="shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-600"
+                      title="复制 URL"
+                    >
+                      {copiedUrl === f.url ? (
+                        <Check className="size-3 text-emerald-500" />
+                      ) : (
+                        <Copy className="size-3" />
+                      )}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </details>
+
         {/* 编辑表单 */}
         {editing && (
           <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
@@ -611,9 +712,12 @@ export default function AdminPage() {
                     placeholder="URL 或上传文件"
                     spellCheck={false}
                   />
-                  <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50">
-                    <Upload className="size-3.5" />
-                    上传
+                  <label className={[
+                    "flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs",
+                    thumbUploading ? "pointer-events-none opacity-50" : "cursor-pointer text-gray-500 hover:bg-gray-50",
+                  ].join(" ")}>
+                    {thumbUploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                    {thumbUploading ? "上传中…" : "上传"}
                     <input
                       type="file"
                       accept="image/*"
@@ -621,6 +725,7 @@ export default function AdminPage() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        setThumbUploading(true);
                         try {
                           const result = await handleUpload(file, "thumbnails");
                           if (result.ok) {
@@ -637,6 +742,8 @@ export default function AdminPage() {
                           const line = `缩略图上传失败：${err instanceof Error ? err.message : "网络错误"}`;
                           setMessage(line);
                           setFileNotice({ variant: "error", text: line });
+                        } finally {
+                          setThumbUploading(false);
                         }
                         e.target.value = "";
                       }}
@@ -666,9 +773,12 @@ export default function AdminPage() {
                     placeholder="URL 或上传 .html 文件"
                     spellCheck={false}
                   />
-                  <label className="flex shrink-0 cursor-pointer items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-500 hover:bg-gray-50">
-                    <Upload className="size-3.5" />
-                    上传
+                  <label className={[
+                    "flex shrink-0 items-center gap-1 rounded-lg border border-gray-200 px-3 py-2 text-xs",
+                    htmlUploading ? "pointer-events-none opacity-50" : "cursor-pointer text-gray-500 hover:bg-gray-50",
+                  ].join(" ")}>
+                    {htmlUploading ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
+                    {htmlUploading ? "上传中…" : "上传"}
                     <input
                       type="file"
                       accept=".html"
@@ -676,6 +786,7 @@ export default function AdminPage() {
                       onChange={async (e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        setHtmlUploading(true);
                         try {
                           const buf = await file.arrayBuffer();
                           const text = new TextDecoder().decode(buf);
@@ -730,6 +841,8 @@ export default function AdminPage() {
                           const line = `HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`;
                           setMessage(line);
                           setFileNotice({ variant: "error", text: line });
+                        } finally {
+                          setHtmlUploading(false);
                         }
                         e.target.value = "";
                       }}
@@ -878,9 +991,12 @@ export default function AdminPage() {
             <div className="mt-6">
               <div className="mb-2 flex items-center justify-between">
                 <span className="text-xs font-medium text-gray-700">素材上传</span>
-                <label className="flex cursor-pointer items-center gap-1 text-xs text-blue-500 hover:text-blue-600">
-                  <ImagePlus className="size-3" />
-                  上传图片
+                <label className={[
+                  "flex items-center gap-1 text-xs",
+                  assetUploading ? "pointer-events-none opacity-50" : "cursor-pointer text-blue-500 hover:text-blue-600",
+                ].join(" ")}>
+                  {assetUploading ? <Loader2 className="size-3 animate-spin" /> : <ImagePlus className="size-3" />}
+                  {assetUploading ? "上传中…" : "上传图片"}
                   <input
                     type="file"
                     accept="image/*"
@@ -889,6 +1005,8 @@ export default function AdminPage() {
                     onChange={async (e) => {
                       const files = e.target.files;
                       if (!files || files.length === 0) return;
+                      setAssetUploading(true);
+                      let count = 0;
                       for (const file of Array.from(files)) {
                         try {
                           const result = await handleUpload(file, "uploads");
@@ -897,6 +1015,7 @@ export default function AdminPage() {
                               ...prev,
                               { name: file.name, url: result.url },
                             ]);
+                            count++;
                           } else {
                             setFileNotice({ variant: "error", text: `${file.name} 上传失败：${result.error}` });
                           }
@@ -904,9 +1023,10 @@ export default function AdminPage() {
                           setFileNotice({ variant: "error", text: `${file.name} 上传失败：${err instanceof Error ? err.message : "网络错误"}` });
                         }
                       }
+                      setAssetUploading(false);
                       e.target.value = "";
-                      if (files.length > 0) {
-                        setFileNotice({ variant: "success", text: `已上传 ${files.length} 个素材文件。点击 URL 旁的复制按钮可复制链接。` });
+                      if (count > 0) {
+                        setFileNotice({ variant: "success", text: `已上传 ${count} 个素材文件。点击 URL 旁的复制按钮可复制链接。` });
                       }
                     }}
                   />

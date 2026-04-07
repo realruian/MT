@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { put } from "@vercel/blob";
 import { clientBlobMediaUrl, isAllowedBlobPathname } from "@/lib/blob-media";
 
-const ALLOWED_FOLDERS = new Set(["thumbnails", "templates", "uploads"]);
+const ALLOWED_FOLDERS = new Set(["thumbnails", "templates", "uploads", "fonts"]);
 
 function safeBasename(name: string): string {
   const base = name.replace(/^.*[/\\]/, "").replace(/\.\./g, "_");
@@ -26,7 +26,8 @@ export async function POST(req: NextRequest) {
     if (!file) {
       return Response.json({ error: "No file provided" }, { status: 400 });
     }
-    if (!ALLOWED_FOLDERS.has(folder)) {
+    const topFolder = folder.split("/")[0];
+    if (!ALLOWED_FOLDERS.has(topFolder)) {
       return Response.json({ error: "Invalid folder" }, { status: 400 });
     }
 
