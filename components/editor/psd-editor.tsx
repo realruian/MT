@@ -159,12 +159,14 @@ export function PsdEditor({ template }: { template: Template }) {
         if (res.ok) {
           const data: PsdLayer[] = await res.json();
           setLayers(data);
-          for (const layer of data) {
-            if (layer.layerType === "text" && layer.fontFamily) {
-              const url = KNOWN_FONTS[layer.fontFamily] ?? `/api/fonts/${layer.fontFamily}.ttf`;
-              preloadFont(layer.fontFamily, url);
-            }
-          }
+          // 并行加载所有字体，不阻塞 UI
+          const fontLayers = data.filter((l) => l.layerType === "text" && l.fontFamily);
+          await Promise.all(
+            fontLayers.map((layer) => {
+              const url = KNOWN_FONTS[layer.fontFamily!] ?? `/api/fonts/${layer.fontFamily}.ttf`;
+              return preloadFont(layer.fontFamily!, url);
+            })
+          );
         }
       } catch (err) {
         console.error("Failed to load layers:", err);

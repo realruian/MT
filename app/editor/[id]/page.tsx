@@ -3,7 +3,7 @@ import { getTemplateById } from "@/lib/templates-db";
 import { EditorPageClient } from "@/components/editor/editor-page-client";
 import { PsdEditor } from "@/components/editor/psd-editor";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 300; // 模板元数据 5 分钟内复用缓存
 
 export default async function EditorPage({
   params,

@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
     const { stream, blob } = result;
     const headers = new Headers();
     headers.set("Content-Type", blob.contentType || "application/octet-stream");
-    headers.set("Cache-Control", "public, max-age=300, s-maxage=300");
+    headers.set("Cache-Control", "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400");
 
     return new Response(stream, { headers });
   } catch (err) {

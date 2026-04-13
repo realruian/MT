@@ -2,7 +2,7 @@ import { HomeMain } from "@/components/home/home-main";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { getAllTemplates } from "@/lib/templates-db";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 60; // 最多 60 秒重新渲染一次，模板数据变化不频繁
 
 export default async function Home() {
   const templates = await getAllTemplates();
@@ -26,6 +26,7 @@ export default async function Home() {
         muted
         loop
         playsInline
+        preload="none"
         src="/high.mp4"
       />
 
