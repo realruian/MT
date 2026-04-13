@@ -33,6 +33,7 @@ export function EditorPageClient({ template }: { template: Template }) {
   });
 
   const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const colorTheme = editableFields.colors[colorIndex]?.values ?? {};
 
@@ -109,7 +110,7 @@ export function EditorPageClient({ template }: { template: Template }) {
       URL.revokeObjectURL(url);
     } catch (err) {
       console.error(err);
-      alert("导出失败，请稍后重试");
+      setExportError("导出失败，请稍后重试");
     } finally {
       setExporting(false);
     }
@@ -158,6 +159,23 @@ export function EditorPageClient({ template }: { template: Template }) {
       </div>
 
       {/* 编辑面板 — fixed 右侧 */}
+      {exportError && (
+        <div
+          role="alert"
+          aria-live="polite"
+          className="fixed bottom-24 right-6 z-50 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-600 shadow-md"
+        >
+          {exportError}
+          <button
+            type="button"
+            aria-label="关闭错误提示"
+            onClick={() => setExportError(null)}
+            className="ml-3 text-red-400 hover:text-red-600"
+          >
+            ✕
+          </button>
+        </div>
+      )}
       <EditPanel
         texts={texts}
         onTextChange={handleTextChange}

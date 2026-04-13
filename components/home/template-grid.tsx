@@ -20,6 +20,8 @@ export function TemplateGrid({ templates }: { templates: Template[] }) {
               <img
                 src={tpl.thumbnail}
                 alt={tpl.name}
+                width={tpl.width}
+                height={tpl.height}
                 loading="lazy"
                 decoding="async"
                 className="w-full transition-transform duration-300 ease-out group-hover:scale-[1.02]"

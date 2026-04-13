@@ -28,8 +28,8 @@ export function SidebarNav() {
 
         if ("href" in item && item.href) {
           return (
-            <Link key={item.id} href={item.href} title={item.label} aria-label={item.label} className={cls}>
-              <Image src={item.src} alt={item.label} width={24} height={24} className="size-6 object-contain" />
+            <Link key={item.id} href={item.href} aria-label={item.label} className={[cls, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-2 rounded-sm"].join(" ")}>
+              <Image src={item.src} alt="" width={24} height={24} className="size-6 object-contain" aria-hidden />
             </Link>
           );
         }
@@ -38,12 +38,12 @@ export function SidebarNav() {
           <button
             key={item.id}
             type="button"
-            title={item.label}
             aria-label={item.label}
+            aria-pressed={active}
             onClick={() => setActiveId(item.id)}
-            className={cls}
+            className={[cls, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-2 rounded-sm"].join(" ")}
           >
-            <Image src={item.src} alt={item.label} width={24} height={24} className="size-6 object-contain" />
+            <Image src={item.src} alt="" width={24} height={24} className="size-6 object-contain" aria-hidden />
           </button>
         );
       })}

@@ -40,8 +40,15 @@ function ColorSwatch({
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
     document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handleClick);
+      document.removeEventListener("keydown", handleKey);
+    };
   }, [open]);
 
   const isWhite = currentColor === "#ffffff";
@@ -50,9 +57,12 @@ function ColorSwatch({
     <div ref={ref} className="relative">
       <button
         type="button"
+        aria-label="选择文字颜色"
+        aria-haspopup="true"
+        aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={[
-          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors",
+          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400",
           open ? "bg-gray-100" : "hover:bg-gray-50",
         ].join(" ")}
       >
@@ -79,13 +89,14 @@ function ColorSwatch({
                 <button
                   key={c.value}
                   type="button"
-                  title={c.label}
+                  aria-label={c.label}
+                  aria-pressed={active}
                   onClick={() => {
                     onChange(fieldKey, c.value);
                     setOpen(false);
                   }}
                   className={[
-                    "relative flex size-7 items-center justify-center rounded-md transition-all",
+                    "relative flex size-7 items-center justify-center rounded-md transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
                     white ? "border border-gray-200" : "",
                     active ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110",
                   ].join(" ")}
@@ -141,12 +152,15 @@ export function EditPanel({
             <div className="flex flex-col gap-3">
               {textFields.map(({ key, label }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <span className="text-xs text-gray-400">{label}</span>
+                  <label htmlFor={`text-field-${key}`} className="text-xs text-gray-400">{label}</label>
                   <input
+                    id={`text-field-${key}`}
                     type="text"
+                    name={key}
+                    autoComplete="off"
                     value={texts[key] ?? ""}
                     onChange={(e) => onTextChange(key, e.target.value)}
-                    className="rounded-input border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-all focus:border-gray-400"
+                    className="rounded-input border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
                   />
                 </div>
               ))}
@@ -225,6 +239,7 @@ export function EditPanel({
                     ref={(el) => { fileInputRefs.current[key] = el; }}
                     type="file"
                     accept="image/*"
+                    aria-label={`上传${label}图片`}
                     className="hidden"
                     onChange={(e) => {
                       const file = e.target.files?.[0];

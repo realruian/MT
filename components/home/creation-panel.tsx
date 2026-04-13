@@ -59,6 +59,7 @@ export { type SceneTabId, sceneTabs };
 
 export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps) {
   const [prompt, setPrompt] = useState("");
+  const [activeMode, setActiveMode] = useState<"free" | "template">("free");
   const [uploadedImage, setUploadedImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -169,16 +170,26 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
           {/* 底部工具栏 */}
           <div className="flex items-end justify-between">
             {/* 模式 pills */}
-            <div className="flex items-center gap-2">
-              {modes.map(({ id, label }) => (
-                <button
-                  key={id}
-                  type="button"
-                  className="rounded-[12px] border border-[#EEEEEE] px-5 py-2.5 text-[12px] font-medium leading-none text-[#919ca5]"
-                >
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2" role="group" aria-label="创作模式">
+              {modes.map(({ id, label }) => {
+                const pressed = activeMode === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    aria-pressed={pressed}
+                    onClick={() => setActiveMode(id as "free" | "template")}
+                    className={[
+                      "rounded-[12px] border px-5 py-2.5 text-[12px] font-medium leading-none transition-colors duration-150",
+                      pressed
+                        ? "border-[#2a2a2a] bg-[#2a2a2a] text-white"
+                        : "border-[#EEEEEE] text-[#919ca5] hover:border-[#d0d0d0] hover:text-[#2a2a2a]",
+                    ].join(" ")}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
             {/* 发送按钮 */}
@@ -223,12 +234,14 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
             return (
               <button
                 key={tab.id}
+                id={`tab-${tab.id}`}
                 role="tab"
                 type="button"
                 aria-selected={active}
+                aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => onSceneChange(tab.id)}
                 className={[
-                  "shrink-0 rounded-[8px] px-3 py-2 text-[10px] font-semibold text-[#2a2a2a] transition-colors duration-150 ease-out",
+                  "shrink-0 rounded-[8px] px-3 py-2 text-[10px] font-semibold text-[#2a2a2a] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-1",
                   active ? "bg-[#ebeced] text-[#2a2a2a]" : "bg-transparent text-[#546471] hover:bg-[#ebeced]/60 hover:text-[#2a2a2a]",
                 ].join(" ")}
               >
