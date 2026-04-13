@@ -62,8 +62,8 @@ function ColorSwatch({
         aria-expanded={open}
         onClick={() => setOpen(!open)}
         className={[
-          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400",
-          open ? "bg-gray-100" : "hover:bg-gray-50",
+          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
+          open ? "bg-[#2a2a2a]" : "hover:bg-[#222]",
         ].join(" ")}
       >
         <span
@@ -77,8 +77,8 @@ function ColorSwatch({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full z-20 mt-1.5 rounded-lg border border-gray-100 bg-white p-2 shadow-lg">
-          <p className="mb-1.5 px-1 text-[11px] font-medium text-gray-400">
+        <div className="absolute right-0 top-full z-20 mt-1.5 rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] p-2 shadow-lg">
+          <p className="mb-1.5 px-1 text-[12px] font-medium text-[#555]">
             文字颜色
           </p>
           <div className="flex gap-1.5">
@@ -141,18 +141,18 @@ export function EditPanel({
   }
 
   return (
-    <aside className="fixed bottom-0 right-0 top-14 z-10 flex w-80 flex-col border-l border-gray-100 bg-white">
+    <aside className="fixed bottom-0 right-0 top-14 z-10 flex w-80 flex-col border-l border-[#2a2a2a] bg-[#1a1a1a]">
       {/* 滚动内容区 */}
       <div className="flex-1 overflow-y-auto">
 
         {/* 文案编辑 */}
         {textFields.length > 0 && (
           <section className="px-5 py-4">
-            <h3 className="mb-3 text-sm font-medium text-gray-500">文案编辑</h3>
+            <h3 className="mb-3 text-sm font-medium text-[#555]">文案编辑</h3>
             <div className="flex flex-col gap-3">
               {textFields.map(({ key, label }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <label htmlFor={`text-field-${key}`} className="text-xs text-gray-400">{label}</label>
+                  <label htmlFor={`text-field-${key}`} className="text-xs text-[#555]">{label}</label>
                   <input
                     id={`text-field-${key}`}
                     type="text"
@@ -160,7 +160,7 @@ export function EditPanel({
                     autoComplete="off"
                     value={texts[key] ?? ""}
                     onChange={(e) => onTextChange(key, e.target.value)}
-                    className="rounded-input border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-900 outline-none transition-colors focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300"
+                    className="rounded border border-[#333] bg-[#222] px-3 py-2 text-sm text-white outline-none transition-colors focus:border-[#555] focus-visible:ring-2 focus-visible:ring-white/10"
                   />
                 </div>
               ))}
@@ -168,12 +168,12 @@ export function EditPanel({
           </section>
         )}
 
-        {colorThemes.length > 0 && <div className="mx-5 border-t border-gray-100" />}
+        {colorThemes.length > 0 && <div className="mx-5 border-t border-[#2a2a2a]" />}
 
         {/* 配色切换（仅当模板提供了配色方案时展示） */}
         {colorThemes.length > 0 && (
           <section className="px-5 py-4">
-            <h3 className="mb-3 text-sm font-medium text-gray-500">配色切换</h3>
+            <h3 className="mb-3 text-sm font-medium text-[#555]">配色切换</h3>
             <div className="grid grid-cols-4 gap-3">
               {colorThemes.map((theme, i) => {
                 const active = i === activeColorIndex;
@@ -182,22 +182,23 @@ export function EditPanel({
                     key={theme.name}
                     type="button"
                     onClick={() => onColorChange(i)}
+                    aria-label={theme.name}
+                    aria-pressed={active}
                     className="group flex flex-col items-center gap-1.5"
-                    title={theme.name}
                   >
                     <div
                       className={[
                         "size-9 rounded-full transition-all duration-200",
                         active
-                          ? "ring-2 ring-cyan-500 ring-offset-2"
-                          : "ring-1 ring-gray-200 group-hover:scale-110 group-hover:ring-gray-300",
+                          ? "ring-2 ring-white ring-offset-2 ring-offset-[#1a1a1a]"
+                          : "ring-1 ring-[#333] group-hover:scale-110 group-hover:ring-[#555]",
                       ].join(" ")}
                       style={{ background: theme.values.primary }}
                     />
                     <span
                       className={[
                         "text-xs leading-none transition-colors",
-                        active ? "font-medium text-gray-900" : "text-gray-400",
+                        active ? "font-medium text-white" : "text-[#555]",
                       ].join(" ")}
                     >
                       {theme.name}
@@ -209,20 +210,21 @@ export function EditPanel({
           </section>
         )}
 
-        {imageFields.length > 0 && <div className="mx-5 border-t border-gray-100" />}
+        {imageFields.length > 0 && <div className="mx-5 border-t border-[#2a2a2a]" />}
 
         {/* 图片替换 */}
         {imageFields.length > 0 && (
           <section className="px-5 py-4">
-            <h3 className="mb-3 text-sm font-medium text-gray-500">图片替换</h3>
+            <h3 className="mb-3 text-sm font-medium text-[#555]">图片替换</h3>
             <div className="flex flex-col gap-3">
               {imageFields.map(({ key, label, src }) => (
                 <div key={key} className="flex flex-col gap-1.5">
-                  <span className="text-xs text-gray-400">{label}</span>
+                  <label htmlFor={`image-field-${key}`} className="text-xs text-[#555]">{label}</label>
                   <button
                     type="button"
+                    aria-label={`替换${label}`}
                     onClick={() => fileInputRefs.current[key]?.click()}
-                    className="group relative h-20 w-full overflow-hidden rounded-card transition-shadow hover:shadow-card-hover"
+                    className="group relative h-20 w-full overflow-hidden rounded transition-shadow hover:shadow-card-hover"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
@@ -230,12 +232,13 @@ export function EditPanel({
                       alt={label}
                       className="size-full object-cover"
                     />
-                    <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-xs font-medium text-white drop-shadow transition-all duration-200 group-hover:bg-black/65">
+                    <span aria-hidden className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-xs font-medium text-white drop-shadow transition-colors duration-200 group-hover:bg-black/65">
                       <Upload className="size-4" />
                       点击替换
                     </span>
                   </button>
                   <input
+                    id={`image-field-${key}`}
                     ref={(el) => { fileInputRefs.current[key] = el; }}
                     type="file"
                     accept="image/*"
@@ -255,12 +258,12 @@ export function EditPanel({
       </div>
 
       {/* 导出按钮 — 固定在底部 */}
-      <div className="shrink-0 border-t border-gray-100 p-5">
+      <div className="shrink-0 border-t border-[#2a2a2a] p-5">
         <button
           type="button"
           onClick={onExport}
           disabled={exporting}
-          className="flex w-full items-center justify-center gap-2 rounded-button bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50"
+          className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
         >
           {exporting ? (
             <Loader2 className="size-4 animate-spin" />

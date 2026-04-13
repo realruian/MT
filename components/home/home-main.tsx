@@ -25,7 +25,7 @@ export function HomeMain({ templates }: { templates: Template[] }) {
 
   return (
     <main className="flex min-h-screen flex-1 flex-col overflow-y-auto bg-transparent">
-      <div className="animate-studio-enter mx-auto flex w-full max-w-content flex-col gap-9 pb-12 pt-[88px]">
+      <div className="animate-studio-enter mx-auto flex w-full max-w-content flex-col gap-5 pb-12 pt-[88px]">
         <CreationPanel
           activeScene={activeScene}
           onSceneChange={setActiveScene}

@@ -133,49 +133,47 @@ export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProp
     return (
       <div
         ref={containerRef}
-        className="relative flex h-full w-full items-center justify-center bg-gray-100"
-        style={{
-          backgroundImage: "radial-gradient(circle, #dde0e6 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
-        }}
+        className="relative flex h-full w-full items-center justify-center bg-[#111]"
       >
         {/* 工具栏 */}
-        <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2.5 rounded-full bg-white px-4 py-2 shadow-sm">
-          <span className="text-xs text-gray-400">{width} × {height}</span>
-          <span className="h-3 w-px bg-gray-200" />
+        <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2.5 rounded-full bg-[#1f1f1f] border border-[#2a2a2a] px-4 py-2">
+          <span className="text-xs text-[#555]">{width} × {height}</span>
+          <span className="h-3 w-px bg-[#2a2a2a]" />
           <button
             type="button"
             onClick={handleZoomOut}
             disabled={scale <= MIN_SCALE}
-            title="缩小"
-            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+            aria-label="缩小"
+            aria-disabled={scale <= MIN_SCALE}
+            className="flex items-center text-[#555] transition-colors hover:text-white disabled:opacity-30"
           >
-            <Minus className="size-3.5" />
+            <Minus className="size-3.5" aria-hidden />
           </button>
-          <span className="w-8 text-center text-xs tabular-nums text-gray-500">
+          <span className="w-8 text-center text-xs tabular-nums text-[#777]" aria-live="polite" aria-label={`当前缩放 ${Math.round(scale * 100)}%`}>
             {Math.round(scale * 100)}%
           </span>
           <button
             type="button"
             onClick={handleZoomIn}
             disabled={scale >= MAX_SCALE}
-            title="放大"
-            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+            aria-label="放大"
+            aria-disabled={scale >= MAX_SCALE}
+            className="flex items-center text-[#555] transition-colors hover:text-white disabled:opacity-30"
           >
-            <Plus className="size-3.5" />
+            <Plus className="size-3.5" aria-hidden />
           </button>
-          <span className="h-3 w-px bg-gray-200" />
+          <span className="h-3 w-px bg-[#2a2a2a]" aria-hidden />
           <button
             type="button"
             onClick={handleFit}
-            title="适应画布"
-            className="flex items-center text-gray-400 transition-colors hover:text-gray-700"
+            aria-label="适应画布"
+            className="flex items-center text-[#555] transition-colors hover:text-white"
           >
-            <Maximize2 className="size-3.5" />
+            <Maximize2 className="size-3.5" aria-hidden />
           </button>
         </div>
         <div
-          className="overflow-hidden rounded-card"
+          className="overflow-hidden"
           style={{ width: width * scale, height: height * scale }}
         >
           <iframe

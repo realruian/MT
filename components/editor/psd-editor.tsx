@@ -252,21 +252,21 @@ export function PsdEditor({ template }: { template: Template }) {
     .sort((a, b) => b.zIndex - a.zIndex);
 
   return (
-    <div className="h-screen bg-white">
-      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-gray-100 bg-white px-5">
+    <div className="h-screen bg-[#111]">
+      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-[#2a2a2a] bg-[#1a1a1a] px-5">
         <Link
           href="/"
-          className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-cyan-500"
+          className="flex items-center gap-1.5 text-sm text-[#888] transition-colors hover:text-white"
         >
           <ArrowLeft className="size-4" />
           返回首页
         </Link>
-        <div className="mx-1 h-4 w-px bg-gray-200" />
-        <span className="text-sm font-medium text-gray-900">{template.name}</span>
-        <span className="rounded-tag bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+        <div className="mx-1 h-4 w-px bg-[#2a2a2a]" />
+        <span className="text-sm font-medium text-white">{template.name}</span>
+        <span className="rounded-tag bg-[#2a2a2a] px-2 py-0.5 text-xs text-[#888]">
           {template.category}
         </span>
-        <span className="rounded-tag bg-purple-50 px-2 py-0.5 text-xs text-purple-600">
+        <span className="rounded-tag bg-[#2a1f3d] px-2 py-0.5 text-xs text-purple-400">
           PSD
         </span>
       </header>
@@ -274,16 +274,12 @@ export function PsdEditor({ template }: { template: Template }) {
       {/* 预览区 */}
       <div
         ref={containerRef}
-        className="fixed bottom-0 left-0 right-[320px] top-14 flex items-center justify-center overflow-auto bg-gray-100"
-        style={{
-          backgroundImage: "radial-gradient(circle, #dde0e6 1px, transparent 1px)",
-          backgroundSize: "22px 22px",
-        }}
+        className="fixed bottom-0 left-0 right-[320px] top-14 flex items-center justify-center overflow-auto bg-[#111]"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="size-8 animate-spin text-gray-400" />
-            <p className="text-sm text-gray-400">加载图层中...</p>
+            <Loader2 className="size-8 animate-spin text-[#555]" />
+            <p className="text-sm text-[#555]">加载图层中...</p>
           </div>
         ) : (
           <div
@@ -291,7 +287,7 @@ export function PsdEditor({ template }: { template: Template }) {
               width: cw * scale,
               height: ch * scale,
               overflow: "hidden",
-              borderRadius: 8,
+              borderRadius: 0,
               boxShadow: "0 4px 24px rgba(0,0,0,0.1)",
             }}
           >
@@ -433,17 +429,17 @@ export function PsdEditor({ template }: { template: Template }) {
             </div>
           </div>
         )}
-        <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 flex items-center gap-3 rounded-full bg-white px-4 py-2 shadow-sm">
-          <span className="text-xs text-gray-400">
+        <div className="absolute left-1/2 top-4 z-10 -translate-x-1/2 flex items-center gap-3 rounded-full border border-[#2a2a2a] bg-[#1f1f1f] px-4 py-2">
+          <span className="text-xs text-[#555]">
             {cw} × {ch} · {Math.round(scale * 100)}%
           </span>
-          <span className="h-3 w-px bg-gray-200" />
+          <span className="h-3 w-px bg-[#2a2a2a]" />
           <button
             type="button"
             onClick={handleUndo}
             disabled={historyRef.current.length === 0}
             title="撤销 (Ctrl+Z)"
-            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+            className="flex items-center text-[#555] transition-colors hover:text-white disabled:opacity-30"
           >
             <Undo2 className="size-3.5" />
           </button>
@@ -452,7 +448,7 @@ export function PsdEditor({ template }: { template: Template }) {
             onClick={handleRedo}
             disabled={futureRef.current.length === 0}
             title="重做 (Ctrl+Shift+Z)"
-            className="flex items-center text-gray-400 transition-colors hover:text-gray-700 disabled:opacity-30"
+            className="flex items-center text-[#555] transition-colors hover:text-white disabled:opacity-30"
           >
             <Redo2 className="size-3.5" />
           </button>
@@ -460,10 +456,10 @@ export function PsdEditor({ template }: { template: Template }) {
       </div>
 
       {/* 编辑面板 */}
-      <aside className="fixed bottom-0 right-0 top-14 z-10 flex w-80 flex-col border-l border-gray-100 bg-white">
+      <aside className="fixed bottom-0 right-0 top-14 z-10 flex w-80 flex-col border-l border-[#2a2a2a] bg-[#1a1a1a]">
         <div className="flex-1 overflow-y-auto">
           {editableLayers.length === 0 && !loading && (
-            <p className="px-5 py-10 text-center text-sm text-gray-300">无可编辑图层</p>
+            <p className="px-5 py-10 text-center text-sm text-[#444]">无可编辑图层</p>
           )}
 
           {editableLayers.map((layer) => {
@@ -475,8 +471,8 @@ export function PsdEditor({ template }: { template: Template }) {
                 key={layer.id}
                 id={`panel-layer-${layer.id}`}
                 className={[
-                  "border-b border-gray-100 px-5 py-4 transition-colors",
-                  isSel ? "bg-blue-50/50" : "",
+                  "border-b border-[#2a2a2a] px-5 py-4 transition-colors",
+                  isSel ? "bg-white/5" : "",
                 ].join(" ")}
               >
                 <div
@@ -488,31 +484,31 @@ export function PsdEditor({ template }: { template: Template }) {
                   ) : (
                     <ImageIcon className="size-4 text-emerald-400" />
                   )}
-                  <span className="truncate text-sm font-medium text-gray-700">
+                  <span className="truncate text-sm font-medium text-[#ccc]">
                     {layer.name}
                   </span>
                   {(layer.locked === true || String(layer.locked) === "true") && <span title="位置已锁定" className="ml-auto"><Lock className="size-3 text-amber-400" /></span>}
-                  {isSel && !(layer.locked === true || String(layer.locked) === "true") && <span className="ml-auto text-[10px] text-blue-500">已选中</span>}
+                  {isSel && !(layer.locked === true || String(layer.locked) === "true") && <span className="ml-auto text-[12px] text-blue-400">已选中</span>}
                 </div>
 
                 {!(layer.locked === true || String(layer.locked) === "true") && (
                   <div className="mb-3 grid grid-cols-2 gap-2">
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs text-gray-400">X</span>
+                      <span className="text-xs text-[#555]">X</span>
                       <input
                         type="number"
                         value={pos.x}
                         onChange={(e) => updateLayer(layer.id, { x: Number(e.target.value) })}
-                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
+                        className="rounded border border-[#333] bg-[#222] px-3 py-1.5 text-xs text-white outline-none focus:border-[#555]"
                       />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs text-gray-400">Y</span>
+                      <span className="text-xs text-[#555]">Y</span>
                       <input
                         type="number"
                         value={pos.y}
                         onChange={(e) => updateLayer(layer.id, { y: Number(e.target.value) })}
-                        className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs outline-none focus:border-gray-400"
+                        className="rounded border border-[#333] bg-[#222] px-3 py-1.5 text-xs text-white outline-none focus:border-[#555]"
                       />
                     </div>
                   </div>
@@ -521,34 +517,34 @@ export function PsdEditor({ template }: { template: Template }) {
                 {type === "text" && (
                   <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1">
-                      <span className="text-xs text-gray-400">文字内容</span>
+                      <span className="text-xs text-[#555]">文字内容</span>
                       <textarea
                         value={getVal(layer, "textContent") ?? ""}
                         onChange={(e) => updateLayer(layer.id, { textContent: e.target.value })}
                         rows={2}
-                        className="resize-none rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-gray-400"
+                        className="resize-none rounded border border-[#333] bg-[#222] px-3 py-2 text-sm text-white outline-none focus:border-[#555]"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs text-gray-400">字号</span>
+                        <span className="text-xs text-[#555]">字号</span>
                         <input
                           type="number"
                           value={getVal(layer, "fontSize") ?? 24}
                           onChange={(e) => updateLayer(layer.id, { fontSize: Number(e.target.value) })}
-                          className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm outline-none focus:border-gray-400"
+                          className="rounded border border-[#333] bg-[#222] px-3 py-2 text-sm text-white outline-none focus:border-[#555]"
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs text-gray-400">颜色</span>
+                        <span className="text-xs text-[#555]">颜色</span>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
                             value={getVal(layer, "fontColor") ?? "#000000"}
                             onChange={(e) => updateLayer(layer.id, { fontColor: e.target.value })}
-                            className="size-9 shrink-0 cursor-pointer rounded-lg border border-gray-200"
+                            className="size-9 shrink-0 cursor-pointer rounded border border-[#333] bg-[#222]"
                           />
-                          <span className="text-xs text-gray-500">
+                          <span className="text-xs text-[#777]">
                             {getVal(layer, "fontColor") ?? "#000000"}
                           </span>
                         </div>
@@ -556,8 +552,8 @@ export function PsdEditor({ template }: { template: Template }) {
                     </div>
                     {layer.fontFamily && (
                       <div className="flex flex-col gap-1">
-                        <span className="text-xs text-gray-400">字体</span>
-                        <span className="text-xs text-gray-600">{layer.fontFamily}</span>
+                        <span className="text-xs text-[#555]">字体</span>
+                        <span className="text-xs text-[#777]">{layer.fontFamily}</span>
                       </div>
                     )}
                   </div>
@@ -566,7 +562,7 @@ export function PsdEditor({ template }: { template: Template }) {
                 {type === "image" && (
                   <div className="flex flex-col gap-2">
                     {getVal(layer, "imageUrl") && (
-                      <div className="h-20 w-full overflow-hidden rounded-lg border border-gray-100">
+                      <div className="h-20 w-full overflow-hidden rounded border border-[#2a2a2a]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={getVal(layer, "imageUrl")!}
@@ -576,10 +572,10 @@ export function PsdEditor({ template }: { template: Template }) {
                       </div>
                     )}
                     <label className={[
-                      "flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 px-3 py-2 text-xs transition-colors",
+                      "flex items-center justify-center gap-1.5 rounded border border-[#333] px-3 py-2 text-xs transition-colors",
                       uploadingLayer === layer.id
-                        ? "pointer-events-none opacity-50 text-gray-400"
-                        : "cursor-pointer text-gray-500 hover:bg-gray-50",
+                        ? "pointer-events-none opacity-50 text-[#555]"
+                        : "cursor-pointer text-[#888] hover:bg-white/5 hover:text-white",
                     ].join(" ")}>
                       {uploadingLayer === layer.id ? <Loader2 className="size-3.5 animate-spin" /> : <Upload className="size-3.5" />}
                       {uploadingLayer === layer.id ? "上传中..." : "替换图片"}
@@ -603,12 +599,12 @@ export function PsdEditor({ template }: { template: Template }) {
         </div>
 
         {/* 导出按钮 */}
-        <div className="shrink-0 border-t border-gray-100 p-5">
+        <div className="shrink-0 border-t border-[#2a2a2a] p-5">
           <button
             type="button"
             onClick={handleExport}
             disabled={exporting || loading}
-            className="flex w-full items-center justify-center gap-2 rounded-button bg-gray-900 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-gray-800 active:scale-[0.98] disabled:opacity-50"
+            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
           >
             {exporting ? (
               <Loader2 className="size-4 animate-spin" />

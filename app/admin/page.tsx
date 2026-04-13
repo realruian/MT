@@ -688,7 +688,7 @@ export default function AdminPage() {
               <div className="space-y-1.5">
                 {uploadedFonts.map((f, i) => (
                   <div key={i} className="flex items-center gap-2 rounded-lg border border-gray-100 bg-gray-50 px-2.5 py-1.5">
-                    <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500">
+                    <span className="shrink-0 rounded bg-gray-200 px-1.5 py-0.5 text-[12px] text-gray-500">
                       {f.folder}
                     </span>
                     <span className="shrink-0 text-xs text-gray-600 w-40 truncate" title={f.name}>

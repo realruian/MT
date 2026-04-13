@@ -817,7 +817,7 @@ export function PsdManager() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-xs font-medium text-gray-800">{layer.name}</p>
-                        <p className="text-[10px] text-gray-400">{layer.x},{layer.y} · {layer.width}×{layer.height}</p>
+                        <p className="text-[12px] text-gray-400">{layer.x},{layer.y} · {layer.width}×{layer.height}</p>
                       </div>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleEditLayerLockToggle(layer.id, layer.locked); }}
@@ -848,7 +848,7 @@ export function PsdManager() {
                           <div className="mt-2">
                             <span className="text-gray-400">文字</span>
                             <p className="mt-0.5 rounded bg-white px-2 py-1 text-gray-800">{layer.textContent}</p>
-                            <div className="mt-1.5 flex gap-3 text-[10px]">
+                            <div className="mt-1.5 flex gap-3 text-[12px]">
                               {layer.fontFamily && <span className="text-gray-500">字体: {layer.fontFamily}</span>}
                               {layer.fontSize && <span className="text-gray-500">字号: {layer.fontSize}px</span>}
                               {layer.fontColor && (

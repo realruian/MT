@@ -34,7 +34,7 @@ export function Accordion({ items }: { items: AccordionItem[] }) {
               onClick={() => toggle(item.id)}
               className="flex w-full items-center gap-2 px-5 py-3.5 text-left transition-colors hover:bg-white/40"
             >
-              <span className="flex-1 text-[13px] font-semibold text-[#1a1a1a]">
+              <span className="flex-1 text-[14px] font-semibold text-[#1a1a1a]">
                 {item.title}
               </span>
               <ChevronDown

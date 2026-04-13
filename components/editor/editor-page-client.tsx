@@ -128,21 +128,21 @@ export function EditorPageClient({ template }: { template: Template }) {
     }));
 
   return (
-    <div className="h-screen bg-white">
-      {/* 顶部导航栏 — fixed，纯白 */}
-      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-gray-100 bg-white px-5">
+    <div className="h-screen bg-[#111]">
+      {/* 顶部导航栏 — fixed，深色 */}
+      <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-[#2a2a2a] bg-[#1a1a1a] px-5">
         <Link
           href="/"
-          className="flex items-center gap-1.5 text-sm text-gray-500 transition-colors hover:text-cyan-500"
+          className="flex items-center gap-1.5 text-sm text-[#888] transition-colors hover:text-white"
         >
           <ArrowLeft className="size-4" />
           返回首页
         </Link>
-        <div className="mx-1 h-4 w-px bg-gray-200" />
-        <span className="text-sm font-medium text-gray-900">
+        <div className="mx-1 h-4 w-px bg-[#2a2a2a]" />
+        <span className="text-sm font-medium text-white">
           {template.name}
         </span>
-        <span className="rounded-tag bg-gray-100 px-2 py-0.5 text-xs text-gray-500">
+        <span className="rounded-tag bg-[#2a2a2a] px-2 py-0.5 text-xs text-[#888]">
           {template.category}
         </span>
       </header>

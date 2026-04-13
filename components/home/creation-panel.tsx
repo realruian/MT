@@ -24,6 +24,12 @@ const sceneTabs = [
       "描述你需要的会场组件类型，如：限时倒计时模块 + 爆品榜单 + 满减优惠信息组合，风格简洁、信息密度中等",
   },
   {
+    id: "consumer",
+    label: "C 端外素材",
+    placeholder:
+      "描述你需要的 C 端消费者向素材，如：品类节日贺卡、活动分享卡、品牌宣传长图等",
+  },
+  {
     id: "insite-slot",
     label: "站内资源位",
     placeholder:
@@ -34,12 +40,6 @@ const sceneTabs = [
     label: "站外资源位",
     placeholder:
       "描述你需要的站外投放素材，如：微信朋友圈信息流 9:16、抖音竖版 Banner、微博横版图文等",
-  },
-  {
-    id: "consumer",
-    label: "C 端外素材",
-    placeholder:
-      "描述你需要的 C 端消费者向素材，如：品类节日贺卡、活动分享卡、品牌宣传长图等",
   },
 ] as const;
 
@@ -83,7 +83,7 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
         <h1 className="title-rainbow font-display text-[32px] leading-none tracking-tight">
           设计需求 快人一步
         </h1>
-        <p className="text-[16px] font-medium leading-none text-[#2a2a2a]">
+        <p className="text-[16px] font-medium leading-snug text-[#2a2a2a]">
           人人都是设计师
         </p>
       </header>
@@ -115,20 +115,24 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
                 onChange={handleFileChange}
               />
               {uploadedImage ? (
-                <div className="relative h-[80px] w-[60px] overflow-hidden rounded-[12px]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={uploadedImage}
-                    alt="已上传参考图"
-                    className="size-full object-cover"
-                  />
+                <div className="relative h-[80px] w-[60px]">
+                  <div className="h-[80px] w-[60px] overflow-hidden rounded-[12px]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={uploadedImage}
+                      alt="已上传参考图"
+                      className="size-full object-cover"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={clearImage}
                     aria-label="移除图片"
-                    className="absolute right-1 top-1 flex size-[18px] items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+                    className="absolute -right-2 -top-2 flex size-11 items-center justify-center"
                   >
-                    <X className="size-2.5" strokeWidth={2.5} aria-hidden />
+                    <span aria-hidden className="flex size-[18px] items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70">
+                      <X className="size-2.5" strokeWidth={2.5} />
+                    </span>
                   </button>
                 </div>
               ) : (
@@ -197,7 +201,7 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
               type="submit"
               disabled={!prompt.trim()}
               aria-label="发送需求"
-              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-white shadow-sm transition-all duration-200 ease-out hover:bg-[#111] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-30"
+              className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2a2a2a] text-white shadow-sm transition-colors duration-150 ease-out hover:bg-[#111] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-30"
             >
               <svg
                 width="13"
@@ -221,13 +225,13 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
 
       {/* 场景 Tab 栏 */}
       <section
-        className="mx-auto w-full max-w-content px-[120px]"
+        className="mx-auto mt-5 w-full max-w-content px-[120px]"
         aria-label="场景分类"
       >
         <div
           role="tablist"
           aria-label="选择场景分类"
-          className="mb-3 flex items-center gap-2"
+          className="flex items-center gap-2"
         >
           {sceneTabs.map((tab) => {
             const active = tab.id === activeScene;
@@ -241,7 +245,7 @@ export function CreationPanel({ activeScene, onSceneChange }: CreationPanelProps
                 aria-controls={`tabpanel-${tab.id}`}
                 onClick={() => onSceneChange(tab.id)}
                 className={[
-                  "shrink-0 rounded-[8px] px-3 py-2 text-[10px] font-semibold text-[#2a2a2a] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-1",
+                  "shrink-0 rounded-[8px] px-3 py-2 text-[12px] font-semibold text-[#2a2a2a] transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-1",
                   active ? "bg-[#ebeced] text-[#2a2a2a]" : "bg-transparent text-[#546471] hover:bg-[#ebeced]/60 hover:text-[#2a2a2a]",
                 ].join(" ")}
               >
