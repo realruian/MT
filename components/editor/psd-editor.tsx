@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Download, Loader2, Upload, Type, ImageIcon, Lock, Undo2, Redo2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
@@ -36,9 +36,11 @@ export function PsdEditor({ template }: { template: Template }) {
   const [exporting, setExporting] = useState(false);
   const [scale, setScale] = useState(0.5);
   const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
+  const [editingLayer, setEditingLayer] = useState<string | null>(null);
   const [dragging, setDragging] = useState<string | null>(null);
   const [uploadingLayer, setUploadingLayer] = useState<string | null>(null);
   const dragStartRef = useRef({ mx: 0, my: 0, lx: 0, ly: 0 });
+  const editingDivRef = useRef<HTMLDivElement>(null);
   const historyRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
   const futureRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
   const MAX_HISTORY = 50;
@@ -317,35 +319,116 @@ export function PsdEditor({ template }: { template: Template }) {
                   const fs = getVal(layer, "fontSize") ?? 16;
                   const lh = getVal(layer, "lineHeight");
                   const rot = layer.rotation ?? 0;
+                  const isLocked = layer.locked === true || String(layer.locked) === "true";
+                  const isEditing = editingLayer === layer.id;
+
+                  // 字体/位置基础样式，宽度和换行按场景单独设置
+                  const baseStyle: React.CSSProperties = {
+                    position: "absolute",
+                    left: pos.x,
+                    top: pos.y,
+                    minWidth: layer.width,
+                    opacity,
+                    fontSize: fs,
+                    fontFamily: `"${getVal(layer, "fontFamily") ?? "sans-serif"}", sans-serif`,
+                    color: getVal(layer, "fontColor") ?? "#000",
+                    fontWeight: (getVal(layer, "fontWeight") as string) ?? "normal",
+                    fontStyle: (layer.fontStyle as React.CSSProperties["fontStyle"]) ?? "normal",
+                    lineHeight: lh && lh > fs ? `${lh}px` : 1.3,
+                    textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
+                    zIndex: layer.zIndex,
+                    transform: rot ? `rotate(${rot}deg)` : undefined,
+                    transformOrigin: "left top",
+                  };
+
                   return (
-                    <div
-                      key={layer.id}
-                      onMouseDown={(e) => handleDragStart(layer.id, layer, e)}
-                      style={{
-                        position: "absolute",
-                        left: pos.x,
-                        top: pos.y,
-                        minWidth: layer.width,
-                        width: isMultiLine ? layer.width : undefined,
-                        opacity,
-                        fontSize: fs,
-                        fontFamily: `"${getVal(layer, "fontFamily") ?? "sans-serif"}", sans-serif`,
-                        color: getVal(layer, "fontColor") ?? "#000",
-                        fontWeight: (getVal(layer, "fontWeight") as string) ?? "normal",
-                        fontStyle: (layer.fontStyle as React.CSSProperties["fontStyle"]) ?? "normal",
-                        lineHeight: lh && lh > fs ? `${lh}px` : 1.3,
-                        textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
-                        zIndex: layer.zIndex,
-                        whiteSpace: isMultiLine ? "pre-wrap" : "nowrap",
-                        overflow: "visible",
-                        transform: rot ? `rotate(${rot}deg)` : undefined,
-                        transformOrigin: "left top",
-                        cursor: (layer.locked === true || String(layer.locked) === "true") ? "default" : isDrag ? "grabbing" : "grab",
-                        userSelect: "none",
-                      }}
-                    >
-                      {text}
-                    </div>
+                    <React.Fragment key={layer.id}>
+                      {/* 文字显示层 */}
+                      <div
+                        onMouseDown={(e) => {
+                          if (isEditing) return;
+                          handleDragStart(layer.id, layer, e);
+                        }}
+                        onDoubleClick={(e) => {
+                          if (isLocked) return;
+                          e.stopPropagation();
+                          setEditingLayer(layer.id);
+                          setSelectedLayer(layer.id);
+                          setTimeout(() => {
+                            const el = editingDivRef.current;
+                            if (!el) return;
+                            el.focus();
+                            // 光标移到末尾
+                            const range = document.createRange();
+                            range.selectNodeContents(el);
+                            range.collapse(false);
+                            window.getSelection()?.removeAllRanges();
+                            window.getSelection()?.addRange(range);
+                          }, 0);
+                        }}
+                        style={{
+                          ...baseStyle,
+                          width: isMultiLine ? layer.width : undefined,
+                          whiteSpace: isMultiLine ? "pre-wrap" : "nowrap",
+                          overflow: "visible",
+                          cursor: isLocked ? "default" : isDrag ? "grabbing" : "grab",
+                          userSelect: "none",
+                          visibility: isEditing ? "hidden" : "visible",
+                        }}
+                      >
+                        {text}
+                      </div>
+                      {/* 原地编辑：contentEditable div，自动适应宽高 */}
+                      {isEditing && (
+                        <div
+                          ref={(node) => {
+                            (editingDivRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+                            if (node) {
+                              // 初始化内容（不走 React 受控，避免光标跳动）
+                              node.innerText = text;
+                              node.focus();
+                              const range = document.createRange();
+                              range.selectNodeContents(node);
+                              range.collapse(false);
+                              window.getSelection()?.removeAllRanges();
+                              window.getSelection()?.addRange(range);
+                            }
+                          }}
+                          contentEditable
+                          suppressContentEditableWarning
+                          onBlur={(e) => {
+                            const newText = e.currentTarget.innerText;
+                            pushHistory();
+                            setEditState((prev) => ({
+                              ...prev,
+                              [layer.id]: { ...prev[layer.id], textContent: newText },
+                            }));
+                            setEditingLayer(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              e.preventDefault();
+                              // 放弃编辑，恢复原文本
+                              if (editingDivRef.current) editingDivRef.current.innerText = text;
+                              setEditingLayer(null);
+                            }
+                          }}
+                          style={{
+                            ...baseStyle,
+                            width: isMultiLine ? layer.width : "max-content",
+                            whiteSpace: isMultiLine ? "pre-wrap" : "nowrap",
+                            overflow: "visible",
+                            background: "transparent",
+                            border: "1.5px solid #6366f1",
+                            outline: "none",
+                            padding: 0,
+                            margin: 0,
+                            cursor: "text",
+                            userSelect: "text",
+                          }}
+                        />
+                      )}
+                    </React.Fragment>
                   );
                 }
 
