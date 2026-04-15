@@ -41,6 +41,8 @@ export function PsdEditor({ template }: { template: Template }) {
   const [uploadingLayer, setUploadingLayer] = useState<string | null>(null);
   const dragStartRef = useRef({ mx: 0, my: 0, lx: 0, ly: 0 });
   const editingDivRef = useRef<HTMLDivElement>(null);
+  const [snapLines, setSnapLines] = useState<Array<{ x?: number; y?: number }>>([]);
+  const editStateRef = useRef(editState);
   const historyRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
   const futureRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
   const MAX_HISTORY = 50;
@@ -101,6 +103,9 @@ export function PsdEditor({ template }: { template: Template }) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [handleUndo, handleRedo]);
 
+  // 保持 ref 与 state 同步，供拖拽闭包读取最新位置
+  useEffect(() => { editStateRef.current = editState; }, [editState]);
+
   function getLayerPos(layer: PsdLayer) {
     const o = editState[layer.id];
     return {
@@ -122,22 +127,76 @@ export function PsdEditor({ template }: { template: Template }) {
 
   useEffect(() => {
     if (!dragging) return;
+    const SNAP = 5; // 吸附阈值（画布像素）
+
     function onMove(e: MouseEvent) {
       e.preventDefault();
       const dx = (e.clientX - dragStartRef.current.mx) / scale;
       const dy = (e.clientY - dragStartRef.current.my) / scale;
+      let rawX = dragStartRef.current.lx + dx;
+      let rawY = dragStartRef.current.ly + dy;
+
+      const draggedLayer = layers.find((l) => l.id === dragging);
+      if (!draggedLayer) {
+        setEditState((prev) => ({ ...prev, [dragging!]: { ...prev[dragging!], x: Math.round(rawX), y: Math.round(rawY) } }));
+        return;
+      }
+
+      const dw = draggedLayer.width;
+      const dh = draggedLayer.height;
+      const cur = editStateRef.current;
+
+      // 收集所有吸附候选点：画布边缘/中心 + 其他图层边缘/中心
+      const xPts: number[] = [0, cw, cw / 2];
+      const yPts: number[] = [0, ch, ch / 2];
+      for (const l of layers) {
+        if (l.id === dragging) continue;
+        const vis = cur[l.id]?.visible ?? l.visible;
+        if (vis !== true && String(vis) !== "true") continue;
+        const lx = (cur[l.id]?.x ?? l.x) as number;
+        const ly = (cur[l.id]?.y ?? l.y) as number;
+        xPts.push(lx, lx + l.width, lx + l.width / 2);
+        yPts.push(ly, ly + l.height, ly + l.height / 2);
+      }
+
+      // X 轴吸附：检查拖拽图层左边缘、右边缘、中心
+      let bestX = SNAP + 1, finalX = rawX, snapXLine: number | undefined;
+      for (const pt of xPts) {
+        const dL = Math.abs(rawX - pt);
+        if (dL < SNAP && dL < bestX) { bestX = dL; finalX = pt; snapXLine = pt; }
+        const dR = Math.abs(rawX + dw - pt);
+        if (dR < SNAP && dR < bestX) { bestX = dR; finalX = pt - dw; snapXLine = pt; }
+        const dC = Math.abs(rawX + dw / 2 - pt);
+        if (dC < SNAP && dC < bestX) { bestX = dC; finalX = pt - dw / 2; snapXLine = pt; }
+      }
+
+      // Y 轴吸附：检查拖拽图层上边缘、下边缘、中心
+      let bestY = SNAP + 1, finalY = rawY, snapYLine: number | undefined;
+      for (const pt of yPts) {
+        const dT = Math.abs(rawY - pt);
+        if (dT < SNAP && dT < bestY) { bestY = dT; finalY = pt; snapYLine = pt; }
+        const dB = Math.abs(rawY + dh - pt);
+        if (dB < SNAP && dB < bestY) { bestY = dB; finalY = pt - dh; snapYLine = pt; }
+        const dCY = Math.abs(rawY + dh / 2 - pt);
+        if (dCY < SNAP && dCY < bestY) { bestY = dCY; finalY = pt - dh / 2; snapYLine = pt; }
+      }
+
+      const lines: Array<{ x?: number; y?: number }> = [];
+      if (snapXLine !== undefined) lines.push({ x: snapXLine });
+      if (snapYLine !== undefined) lines.push({ y: snapYLine });
+      setSnapLines(lines);
+
       setEditState((prev) => ({
         ...prev,
-        [dragging!]: {
-          ...prev[dragging!],
-          x: Math.round(dragStartRef.current.lx + dx),
-          y: Math.round(dragStartRef.current.ly + dy),
-        },
+        [dragging!]: { ...prev[dragging!], x: Math.round(finalX), y: Math.round(finalY) },
       }));
     }
+
     function onUp() {
       setDragging(null);
+      setSnapLines([]);
     }
+
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
     return () => {
@@ -484,6 +543,41 @@ export function PsdEditor({ template }: { template: Template }) {
 
                 return null;
               })}
+
+              {/* 吸附参考线 */}
+              {snapLines.map((line, i) =>
+                line.x !== undefined ? (
+                  <div
+                    key={`sx-${i}`}
+                    style={{
+                      position: "absolute",
+                      left: line.x - 0.5,
+                      top: 0,
+                      width: 1,
+                      height: ch,
+                      background: "#6366f1",
+                      opacity: 0.85,
+                      pointerEvents: "none",
+                      zIndex: 10001,
+                    }}
+                  />
+                ) : (
+                  <div
+                    key={`sy-${i}`}
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: line.y! - 0.5,
+                      width: cw,
+                      height: 1,
+                      background: "#6366f1",
+                      opacity: 0.85,
+                      pointerEvents: "none",
+                      zIndex: 10001,
+                    }}
+                  />
+                )
+              )}
 
               {/* 选中图层高亮边框 overlay */}
               {selectedLayer && (() => {
