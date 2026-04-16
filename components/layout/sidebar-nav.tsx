@@ -16,7 +16,7 @@ export function SidebarNav() {
 
   return (
     <aside
-      className="fixed left-0 top-1/2 z-10 flex w-[64px] -translate-y-1/2 flex-col items-start gap-10 pl-[40px]"
+      className="fixed left-[24px] top-1/2 z-10 flex -translate-y-1/2 flex-col items-start gap-6"
       aria-label="主导航"
     >
       {navItems.map((item) => {

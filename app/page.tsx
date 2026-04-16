@@ -2,7 +2,7 @@ import { HomeMain } from "@/components/home/home-main";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { getAllTemplates } from "@/lib/templates-db";
 
-export const revalidate = 60; // 最多 60 秒重新渲染一次，模板数据变化不频繁
+export const revalidate = 60;
 
 export default async function Home() {
   const templates = await getAllTemplates();
@@ -30,18 +30,22 @@ export default async function Home() {
         src="/high.mp4"
       />
 
-      {/* 内容层 z-3，高于 ::after(z-2) 和 video(z-1) */}
+      {/* 顶部遮罩 z-2.5 */}
+      <div className="absolute left-0 top-0 z-[2] h-[60px] w-full bg-black/[0.06] mix-blend-multiply" />
+
+      {/* 内容层 z-3 */}
       <div className="relative z-[3] flex min-h-screen flex-col">
-        {/* 品牌名 — 与侧边栏 icon 左对齐 */}
-        <div className="shrink-0 pl-[40px] pt-6">
-          <span className="select-none text-[8px] font-medium text-[#2a2a2a] uppercase">
-            AI Creative
-          </span>
+        {/* 右上角用户徽章 */}
+        <div className="absolute right-6 top-4 z-10 flex items-center gap-2">
+          <div className="size-[30px] overflow-hidden rounded-full bg-gray-300" />
+          <span className="text-[12px] text-white">业务</span>
         </div>
+
         {/* 固定侧边栏 */}
         <SidebarNav />
-        {/* 主内容（左侧留出侧边栏宽度） */}
-        <div className="flex flex-1 pl-[64px]">
+
+        {/* 主内容 */}
+        <div className="flex flex-1 pl-[100px] pr-[40px]">
           <HomeMain templates={templates} />
         </div>
       </div>

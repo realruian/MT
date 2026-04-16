@@ -81,7 +81,7 @@ export const tokens = {
 
   // 字体
   typography: {
-    fontFamily: '-apple-system, "PingFang SC", "Helvetica Neue", Arial, sans-serif',
+    fontFamily: '"PingFang SC", "Helvetica Neue", Arial, sans-serif',
     heading: {
       hero: { size: '36px', weight: 700, lineHeight: 1.2 },
       h1: { size: '30px', weight: 600, lineHeight: 1.3 },
@@ -111,51 +111,4 @@ export const tokens = {
   },
 } as const;
 
-// Tailwind 自定义配置参考（可直接贴到 tailwind.config.ts 的 extend 中）
-export const tailwindExtend = {
-  colors: {
-    brand: {
-      50: '#ecfeff',
-      100: '#cffafe',
-      200: '#a5f3fc',
-      300: '#67e8f9',
-      400: '#22d3ee',
-      500: '#06b6d4',
-      600: '#0891b2',
-    },
-    ink: {
-      title: tokens.colors.text.title,
-      body: tokens.colors.text.body,
-      muted: tokens.colors.text.secondary,
-    },
-    surface: {
-      card: tokens.colors.surface.card,
-      'card-solid': tokens.colors.surface.cardSolid,
-      sidebar: tokens.colors.surface.sidebar,
-    },
-  },
-  width: {
-    sidebar: tokens.layout.sidebarWidth,
-  },
-  maxWidth: {
-    content: tokens.layout.maxWidth,
-  },
-  borderRadius: {
-    card: '16px',
-    button: '12px',
-    input: '12px',
-    tag: '8px',
-  },
-  boxShadow: {
-    card: '0 2px 8px rgba(0, 0, 0, 0.04)',
-    'card-hover': '0 8px 24px rgba(0, 0, 0, 0.08)',
-    'input-focus': '0 0 0 3px rgba(6, 182, 212, 0.15)',
-  },
-  fontFamily: {
-    display: ['"SmileySans"', 'sans-serif'],
-    sans: ['MiSans', 'PingFang SC', 'Helvetica Neue', 'Arial', 'sans-serif'],
-  },
-  backgroundImage: {
-    'page-gradient': 'linear-gradient(135deg, #fdf2f8 0%, #f0f9ff 50%, #faf5ff 100%)',
-  },
-};
+// tailwindExtend 已迁移至 app/globals.css 的 @theme inline 块（Tailwind v4 原生方式）

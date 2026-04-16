@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CreationPanel, type SceneTabId } from "./creation-panel";
+import { HeroHeader, SceneTabBar, CreationPanel, type SceneTabId } from "./creation-panel";
+import { FeatureCards } from "./feature-cards";
 import { TemplateGrid } from "./template-grid";
 import type { Template } from "@/types/template";
 
@@ -25,12 +26,34 @@ export function HomeMain({ templates }: { templates: Template[] }) {
 
   return (
     <main className="flex min-h-screen flex-1 flex-col overflow-y-auto bg-transparent">
-      <div className="animate-studio-enter mx-auto flex w-full max-w-content flex-col gap-5 pb-12 pt-[88px]">
-        <CreationPanel
-          activeScene={activeScene}
-          onSceneChange={setActiveScene}
-        />
-        <TemplateGrid templates={filtered} />
+      <div className="animate-studio-enter flex w-full flex-col pb-12">
+        {/* ① Hero 标题区 — 顶部 60px 遮罩 + 60px 间距 = 120px */}
+        <div className="pt-[120px]">
+          <HeroHeader />
+        </div>
+
+        {/* ② 场景 Tab 栏 — 副标题下方 64px */}
+        <div className="pt-16">
+          <SceneTabBar
+            activeScene={activeScene}
+            onSceneChange={setActiveScene}
+          />
+        </div>
+
+        {/* ③ 创作面板 — 紧贴 Tab 下方 */}
+        <div className="pt-0">
+          <CreationPanel activeScene={activeScene} />
+        </div>
+
+        {/* ④ AI 图像处理卡片 — 面板下方 24px */}
+        <div className="pt-6">
+          <FeatureCards />
+        </div>
+
+        {/* ⑤⑥ 全部模板 + 网格 — 卡片下方 24px */}
+        <div className="pt-6">
+          <TemplateGrid templates={filtered} />
+        </div>
       </div>
     </main>
   );

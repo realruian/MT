@@ -4,15 +4,21 @@ import type { Template } from "@/types/template";
 export function TemplateGrid({ templates }: { templates: Template[] }) {
   if (templates.length === 0) {
     return (
-      <section className="mx-auto w-full max-w-content px-[120px]" aria-label="模板库">
+      <section aria-label="模板库">
+        <h3 className="mb-3 text-[16px] font-light leading-none text-[#11192d]">
+          全部模板
+        </h3>
         <p className="py-20 text-center text-sm text-gray-400">暂无模板</p>
       </section>
     );
   }
 
   return (
-    <section className="mx-auto w-full max-w-content px-[120px]" aria-label="模板库">
-      <div className="columns-4 gap-6 space-y-6">
+    <section aria-label="模板库">
+      <h3 className="mb-3 text-[16px] font-light leading-none text-[#11192d]">
+        全部模板
+      </h3>
+      <div className="columns-6 gap-2 space-y-2">
         {templates.map((tpl) => (
           <Link key={tpl.id} href={`/editor/${tpl.id}`} className="block break-inside-avoid">
             <div className="group relative block w-full break-inside-avoid overflow-hidden rounded-[8px] transition-all duration-200 ease-out focus-visible:outline-none focus-visible:shadow-[0_0_0_3px_rgba(6,182,212,0.3)]">
