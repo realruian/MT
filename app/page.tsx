@@ -1,11 +1,21 @@
-import { HomeMain } from "@/components/home/home-main";
+import { HomeShell } from "@/components/home/home-shell";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
+import { TopBar } from "@/components/layout/top-bar";
 import { getAllTemplates } from "@/lib/templates-db";
 
 export const revalidate = 60;
 
 export default async function Home() {
-  const templates = await getAllTemplates();
+  const baseTemplates = await getAllTemplates();
+
+  // DEV ONLY: 克隆 10 份用于验证瀑布流布局，生产环境直接用原始数据
+  const templates =
+    process.env.NODE_ENV === "development"
+      ? Array.from({ length: 10 }, (_, i) =>
+          baseTemplates.map((t) => ({ ...t, id: `${t.id}-mock-${i}` })),
+        ).flat()
+      : baseTemplates;
+
   return (
     <div
       className="hero-section flex min-h-screen flex-col font-sans"
@@ -16,11 +26,11 @@ export default async function Home() {
       }
     >
       {/* 基础渐变背景 z-0 */}
-      <div className="absolute inset-0 z-0 bg-[linear-gradient(135deg,#fdf2f8_0%,#f0f9ff_50%,#faf5ff_100%)]" />
+      <div className="fixed inset-0 z-0 bg-[linear-gradient(135deg,#fdf2f8_0%,#f0f9ff_50%,#faf5ff_100%)]" />
 
       {/* 背景视频 z-1 */}
       <video
-        className="absolute inset-0 z-[1] h-full w-full object-fill"
+        className="fixed inset-0 z-[1] h-screen w-screen object-cover"
         style={{ pointerEvents: "none" }}
         autoPlay
         muted
@@ -30,24 +40,15 @@ export default async function Home() {
         src="/high.mp4"
       />
 
-      {/* 顶部遮罩 z-2.5 */}
-      <div className="absolute left-0 top-0 z-[2] h-[60px] w-full bg-black/[0.06] mix-blend-multiply" />
+      {/* 顶部导航栏 — fixed，始终钉在视口顶部 */}
+      <TopBar />
+
+      {/* 固定侧边栏 */}
+      <SidebarNav />
 
       {/* 内容层 z-3 */}
-      <div className="relative z-[3] flex min-h-screen flex-col">
-        {/* 右上角用户徽章 */}
-        <div className="absolute right-6 top-4 z-10 flex items-center gap-2">
-          <div className="size-[30px] overflow-hidden rounded-full bg-gray-300" />
-          <span className="text-[12px] text-white">业务</span>
-        </div>
-
-        {/* 固定侧边栏 */}
-        <SidebarNav />
-
-        {/* 主内容 */}
-        <div className="flex flex-1 pl-[100px] pr-[40px]">
-          <HomeMain templates={templates} />
-        </div>
+      <div className="relative z-[3] pt-[60px]">
+        <HomeShell templates={templates} />
       </div>
     </div>
   );

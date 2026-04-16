@@ -3,81 +3,13 @@
 import Image from "next/image";
 import { useRef, useState } from "react";
 import { X } from "lucide-react";
-
-const sceneTabs = [
-  { id: "all", label: "自由模式" },
-  { id: "hall-banner", label: "会场头图" },
-  { id: "hall-blocks", label: "会场组件" },
-  { id: "insite-slot", label: "站内资源位" },
-  { id: "offsite-slot", label: "站外资源位" },
-  { id: "consumer", label: "C 端外素材" },
-] as const;
-
-type SceneTabId = (typeof sceneTabs)[number]["id"];
+import type { SceneTabId } from "./scene-tab-bar";
 
 const modes = [
   { id: "free", label: "自由模式" },
   { id: "template", label: "智能比例" },
-  { id: "batch", label: "批量生成" },
 ] as const;
 
-export { type SceneTabId, sceneTabs };
-
-/* ── Hero 标题区 ── */
-export function HeroHeader() {
-  return (
-    <header className="flex flex-col items-center gap-4 text-center">
-      <h1 className="title-rainbow font-display text-[42px] leading-none tracking-tight">
-        设计需求 快人一步
-      </h1>
-      <p className="text-[24px] font-normal leading-none text-[#11192d]">
-        人人都是设计师
-      </p>
-    </header>
-  );
-}
-
-/* ── 场景 Tab 栏 ── */
-interface SceneTabBarProps {
-  activeScene: SceneTabId;
-  onSceneChange: (id: SceneTabId) => void;
-}
-
-export function SceneTabBar({ activeScene, onSceneChange }: SceneTabBarProps) {
-  return (
-    <div
-      role="tablist"
-      aria-label="选择场景分类"
-      className="flex items-center gap-8"
-    >
-      {sceneTabs.map((tab) => {
-        const active = tab.id === activeScene;
-        return (
-          <button
-            key={tab.id}
-            id={`tab-${tab.id}`}
-            role="tab"
-            type="button"
-            aria-selected={active}
-            aria-controls={`tabpanel-${tab.id}`}
-            onClick={() => onSceneChange(tab.id)}
-            className={[
-              "relative shrink-0 pb-2 text-[16px] font-medium leading-none transition-colors duration-150 ease-out focus-visible:outline-none",
-              active ? "text-[#11192d]" : "text-[#2a2a2a] hover:text-[#11192d]",
-            ].join(" ")}
-          >
-            {tab.label}
-            {active && (
-              <span className="absolute bottom-0 left-1/2 h-[2px] w-[32px] -translate-x-1/2 bg-[#11192d]" />
-            )}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-/* ── 创作面板（仅表单） ── */
 interface CreationPanelProps {
   activeScene: SceneTabId;
 }
@@ -102,7 +34,7 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
   return (
     <form
       aria-label="创作面板"
-      className="flex w-full gap-6 rounded-[12px] border border-[#f1f2f2] bg-white p-4"
+      className="flex w-full flex-wrap gap-6 rounded-[12px] border border-[#f1f2f2] bg-white p-4"
       action="#"
       method="post"
     >
@@ -132,7 +64,10 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
               aria-label="移除图片"
               className="absolute -right-2 -top-2 flex size-11 items-center justify-center"
             >
-              <span aria-hidden className="flex size-[18px] items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70">
+              <span
+                aria-hidden
+                className="flex size-[18px] items-center justify-center rounded-full bg-black/50 text-white transition-colors hover:bg-black/70"
+              >
                 <X className="size-2.5" strokeWidth={2.5} />
               </span>
             </button>
@@ -144,11 +79,10 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
             aria-label="上传参考图片"
           >
             <Image
-              src="/icons/plus.svg"
+              src="/icons/upload-image.svg"
               alt=""
               width={20}
               height={20}
-              className="opacity-40"
               aria-hidden
             />
             <span className="text-[12px] text-[#7c889c]">上传图片</span>
@@ -157,9 +91,11 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
       </div>
 
       {/* 右侧：输入框 + 按钮 */}
-      <div className="flex min-w-0 flex-1 flex-col justify-between self-stretch">
+      <div className="flex min-w-[200px] flex-1 flex-col justify-between self-stretch">
         <div className="flex-1">
-          <label htmlFor="design-prompt" className="sr-only">设计描述</label>
+          <label htmlFor="design-prompt" className="sr-only">
+            设计描述
+          </label>
           <textarea
             id="design-prompt"
             key={activeScene}
@@ -169,29 +105,33 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
             onChange={(e) => setPrompt(e.target.value)}
             autoComplete="off"
             placeholder="请在此输入您的设计要求，词条越详细，生成效果越精准哦～"
-            className="w-full resize-none border-0 bg-transparent text-[14px] leading-[1.5] text-[#11192d] outline-none placeholder:text-[#7c889c] focus:ring-0"
+            className="mt-2 w-full resize-none border-0 bg-transparent text-[14px] leading-[14px] text-[#7c889c] outline-none placeholder:text-[#7c889c] focus:ring-0"
           />
         </div>
 
         {/* 底部工具栏 */}
         <div className="flex items-end justify-between">
           <div className="flex items-center gap-2" role="group" aria-label="创作模式">
-            {modes.map(({ id, label }) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={activeMode === id}
-                onClick={() => setActiveMode(id)}
-                className={[
-                  "rounded-[12px] border px-5 py-2.5 text-[12px] font-normal leading-none transition-colors duration-150",
-                  activeMode === id
-                    ? "border-[#11192d] bg-[#11192d] text-white"
-                    : "border-[#eee] text-[#7c889c] hover:border-[#ccc] hover:text-[#11192d]",
-                ].join(" ")}
-              >
-                {label}
-              </button>
-            ))}
+            {modes.map(({ id, label }) => {
+              const pressed = activeMode === id;
+              const cls = [
+                "rounded-[12px] border px-5 py-2.5 text-[12px] font-normal leading-none transition-colors duration-150",
+                pressed
+                  ? "border-[#11192d] bg-[#11192d] text-white"
+                  : "border-[#eee] text-[#7c889c] hover:border-[#ccc] hover:text-[#11192d]",
+              ].join(" ");
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  aria-pressed={pressed}
+                  onClick={() => setActiveMode(id)}
+                  className={cls}
+                >
+                  {label}
+                </button>
+              );
+            })}
           </div>
 
           <button
@@ -201,7 +141,13 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
             className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#11192d] text-white shadow-sm transition-colors duration-150 ease-out hover:bg-[#000] active:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-30"
           >
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden>
-              <path d="M6.5 11V2M6.5 2L2 6.5M6.5 2L11 6.5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+              <path
+                d="M6.5 11V2M6.5 2L2 6.5M6.5 2L11 6.5"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
             </svg>
           </button>
         </div>

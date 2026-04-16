@@ -63,7 +63,6 @@
 }
 
 html {
-  zoom: 1.25;
   background-color: #f0f4ff;
   overscroll-behavior: none;
 }
@@ -75,7 +74,6 @@ body {
 
 .hero-section {
   position: relative;
-  overflow: hidden;
 }
 
 /* Bottom fade: blends the video into the page background.
@@ -83,7 +81,8 @@ body {
 .hero-section::after {
   content: "";
   position: absolute;
-  inset-x: 0;
+  left: 0;
+  right: 0;
   bottom: 0;
   height: 320px;
   pointer-events: none;
