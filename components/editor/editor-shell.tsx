@@ -319,7 +319,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   return (
     <>
       {/* 卡片面板：填满父容器（页面级内边距由 app/editor/[id]/page.tsx 负责） */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-[12px] bg-white/90">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-[12px] bg-white/50">
         <EditorTopbar
           activity={activity}
           onExtend={() => {
