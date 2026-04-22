@@ -40,9 +40,9 @@ function normalizeWeight(w: string | undefined): string {
 
 /** 输入框通用样式 */
 const inputCls =
-  "h-8 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#111] outline-none focus:border-[#bbb]";
+  "h-8 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#11192D] outline-none focus:border-[#bbb]";
 const readonlyCls =
-  "flex h-8 items-center gap-2 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#111]";
+  "flex h-8 items-center gap-2 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#11192D]";
 
 export function PropertyPanel({
   template,
@@ -103,11 +103,11 @@ export function PropertyPanel({
     selectedLayer?.layerType === "background";
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-[#eee] p-5">
+    <aside className="flex w-[240px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-[#eee] p-5">
       {/* 状态 1：什么都没选中 → 仅显示画布尺寸 */}
       {!selectedLayer && !selectedGroup && (
         <section>
-          <h3 className="mb-2.5 text-xs text-[#999]">画布尺寸</h3>
+          <h3 className="mb-3 text-[14px] text-[#11192D]">画布尺寸</h3>
           <div className="grid grid-cols-2 gap-2">
             <PropertyField label="W">
               <div className={readonlyCls}>{canvasW}</div>
@@ -122,7 +122,7 @@ export function PropertyPanel({
       {/* 仅一级选中模块：选中模块 X/Y 可编辑，W/H readonly；delta 同步应用到子图层 */}
       {!selectedLayer && selectedGroup && (
         <section>
-          <h3 className="mb-2.5 text-xs text-[#999]">选中模块</h3>
+          <h3 className="mb-3 text-[14px] text-[#11192D]">选中模块</h3>
           <div className="grid grid-cols-2 gap-2">
             <PropertyField label="X">
               <input
@@ -175,7 +175,7 @@ export function PropertyPanel({
       {/* 状态 2 / 3：选中元素 → 公共的 X/Y/W/H 网格 */}
       {selectedLayer && (
         <section>
-          <h3 className="mb-2.5 text-xs text-[#999]">选中元素</h3>
+          <h3 className="mb-3 text-[14px] text-[#11192D]">选中元素</h3>
           <div className="grid grid-cols-2 gap-2">
             <PropertyField label="X">
               <input
@@ -211,11 +211,11 @@ export function PropertyPanel({
       {selectedLayer && isText && (
         <>
           <section>
-            <h3 className="mb-2.5 text-xs text-[#999]">文字</h3>
+            <h3 className="mb-3 text-[14px] text-[#11192D]">文字</h3>
             <TextFields layer={selectedLayer} eff={eff} setStr={setStr} setNum={setNum} />
           </section>
           <section>
-            <h3 className="mb-2.5 text-xs text-[#999]">填充颜色</h3>
+            <h3 className="mb-3 text-[14px] text-[#11192D]">填充颜色</h3>
             <ColorField layer={selectedLayer} eff={eff} setStr={setStr} />
           </section>
         </>
@@ -224,7 +224,7 @@ export function PropertyPanel({
       {/* 状态 3：图片元素专属 —— 替换图片 */}
       {selectedLayer && isImage && (
         <section>
-          <h3 className="mb-2.5 text-xs text-[#999]">图片</h3>
+          <h3 className="mb-3 text-[14px] text-[#11192D]">图片</h3>
           <ImageField
             layer={selectedLayer}
             effWidth={eff(selectedLayer, "width") as number}
@@ -236,7 +236,7 @@ export function PropertyPanel({
       {/* 状态 2 / 3 共用：不透明度 */}
       {selectedLayer && (isText || isImage) && (
         <section>
-          <h3 className="mb-2.5 text-xs text-[#999]">不透明度</h3>
+          <h3 className="mb-3 text-[14px] text-[#11192D]">不透明度</h3>
           <OpacityField layer={selectedLayer} eff={eff} setNum={setNum} />
         </section>
       )}
@@ -304,7 +304,7 @@ function TextFields({
           rows={2}
           value={textContent}
           onChange={(e) => setStr(layer, "textContent", e.target.value)}
-          className="w-full resize-none rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2 text-sm text-[#111] outline-none focus:border-[#111]"
+          className="w-full resize-none rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2 text-sm text-[#11192D] outline-none focus:border-[#11192D]"
         />
       </PropertyField>
 
@@ -480,7 +480,7 @@ function ImageField({
         type="button"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
-        className="flex h-8 w-full items-center justify-center rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#111] outline-none transition-colors hover:border-[#bbb] disabled:cursor-not-allowed disabled:opacity-60"
+        className="flex h-8 w-full items-center justify-center rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#11192D] outline-none transition-colors hover:border-[#bbb] disabled:cursor-not-allowed disabled:opacity-60"
       >
         {uploading ? "上传中…" : "替换图片"}
       </button>
@@ -552,7 +552,7 @@ function AlignButtons({
             onClick={() => onChange(id)}
             className={[
               "flex h-7 flex-1 items-center justify-center rounded transition-colors",
-              active ? "bg-white text-[#111] shadow-sm" : "text-[#999] hover:text-[#111]",
+              active ? "bg-white text-[#11192D] shadow-sm" : "text-[#999] hover:text-[#11192D]",
             ].join(" ")}
           >
             <Icon className="size-3.5" />

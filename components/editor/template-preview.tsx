@@ -133,7 +133,7 @@ export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProp
     return (
       <div
         ref={containerRef}
-        className="relative flex h-full w-full items-center justify-center bg-[#111]"
+        className="relative flex h-full w-full items-center justify-center bg-[#11192D]"
       >
         {/* 工具栏 */}
         <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 flex items-center gap-2.5 rounded-full bg-[#1f1f1f] border border-[#2a2a2a] px-4 py-2">

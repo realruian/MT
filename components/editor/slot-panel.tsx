@@ -1,6 +1,6 @@
 "use client";
 
-import { Trash2 } from "lucide-react";
+import { X } from "lucide-react";
 import type { Slot, SlotId } from "./editor-shell";
 
 interface SlotPanelProps {
@@ -10,11 +10,17 @@ interface SlotPanelProps {
   onDelete: (id: SlotId) => void;
 }
 
+/** 名称超过 7 字按字符数硬截断为 "xxxxxxx…"，保证视觉长度稳定 */
+function truncateName(name: string): string {
+  if (name.length <= 7) return name;
+  return name.slice(0, 7) + "…";
+}
+
 export function SlotPanel({ slots, activeSlotId, onSelect, onDelete }: SlotPanelProps) {
   return (
     <aside className="flex w-[260px] shrink-0 flex-col border-r border-[#eee]">
-      <div className="px-6 py-5 text-xs text-[#999]">资源位</div>
-      <ul className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 pb-3">
+      <div className="px-6 py-5 text-[14px] text-[#11192D]">资源位</div>
+      <ul className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
         {slots.map((slot) => (
           <SlotItem
             key={slot.id}
@@ -41,22 +47,23 @@ function SlotItem({
   onDelete: () => void;
 }) {
   const canDelete = slot.id !== "venue";
+  const displayName = truncateName(slot.name);
 
   return (
     <li
       className={[
-        "group flex items-center gap-3 rounded-lg px-3 py-2 transition-colors",
+        "group flex h-[44px] w-[216px] items-center rounded-[10px] pl-[2px] pr-2 transition-colors",
         active
-          ? "border border-[#e5e5e5] bg-[#f5f5f5]"
-          : "border border-transparent hover:bg-[#fafafa]",
+          ? "bg-[#eef0f3]"
+          : "hover:bg-[#f5f6f8]",
       ].join(" ")}
     >
       <button
         type="button"
         onClick={onSelect}
-        className="flex flex-1 items-center gap-3 text-left"
+        className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
-        <div className="size-10 shrink-0 overflow-hidden rounded border border-[#eee] bg-[#f5f5f5]">
+        <div className="size-[41px] shrink-0 overflow-hidden rounded-[8px] bg-[#e3e6e9]">
           {slot.thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -66,12 +73,7 @@ function SlotItem({
             />
           ) : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm text-[#111]">{slot.name}</p>
-          <p className="truncate text-[11px] text-[#999]">
-            {slot.width} × {slot.height}
-          </p>
-        </div>
+        <span className="text-[16px] text-[#4F607A]">{displayName}</span>
       </button>
 
       {canDelete && (
@@ -83,9 +85,9 @@ function SlotItem({
             e.stopPropagation();
             onDelete();
           }}
-          className="flex size-7 items-center justify-center rounded text-[#c94848] opacity-0 transition-opacity hover:bg-red-50 group-hover:opacity-100"
+          className="flex size-6 shrink-0 items-center justify-center rounded text-[#4f607a] opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
         >
-          <Trash2 className="size-3.5" />
+          <X className="size-4" />
         </button>
       )}
     </li>

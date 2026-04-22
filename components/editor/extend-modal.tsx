@@ -62,12 +62,12 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
       >
         {/* 标题栏 */}
         <div className="flex items-center justify-between border-b border-[#eee] px-6 py-4">
-          <h2 className="text-base font-medium text-[#111]">选择需要新增的渠道尺寸</h2>
+          <h2 className="text-base font-medium text-[#11192D]">选择需要新增的渠道尺寸</h2>
           <button
             type="button"
             aria-label="关闭"
             onClick={onClose}
-            className="text-[#999] hover:text-[#111]"
+            className="text-[#999] hover:text-[#11192D]"
           >
             <X className="size-5" />
           </button>
@@ -84,11 +84,11 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                 className="rounded-lg border border-[#e5e5e5] bg-[#fafafa] p-3"
               >
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#111]">{preset.name}</span>
+                  <span className="text-sm font-medium text-[#11192D]">{preset.name}</span>
                   <button
                     type="button"
                     onClick={() => toggleAllInGroup(preset)}
-                    className="text-xs text-[#666] hover:text-[#111]"
+                    className="text-xs text-[#666] hover:text-[#11192D]"
                   >
                     {allSelected ? "取消全选" : "全选"}
                   </button>
@@ -103,7 +103,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                         className={[
                           "flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition",
                           checked
-                            ? "border-[#111] bg-white text-[#111]"
+                            ? "border-[#11192D] bg-white text-[#11192D]"
                             : "border-[#e5e5e5] bg-white text-[#666] hover:border-[#ccc]",
                         ].join(" ")}
                       >
@@ -132,7 +132,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
             <button
               type="button"
               onClick={onClose}
-              className="h-9 rounded-lg border border-[#e5e5e5] px-4 text-sm text-[#111] hover:bg-[#f5f5f5]"
+              className="h-9 rounded-lg border border-[#e5e5e5] px-4 text-sm text-[#11192D] hover:bg-[#f5f5f5]"
             >
               取消
             </button>
@@ -140,7 +140,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
               type="button"
               onClick={handleConfirm}
               disabled={selected.size === 0}
-              className="h-9 rounded-lg bg-[#111] px-4 text-sm text-white hover:bg-[#000] disabled:opacity-40"
+              className="h-9 rounded-lg bg-[#11192D] px-4 text-sm text-white hover:bg-[#000] disabled:opacity-40"
             >
               确认新增
             </button>

@@ -125,7 +125,7 @@ export function EditorPageClient({ template }: { template: Template }) {
     }));
 
   return (
-    <div className="h-screen bg-[#111]">
+    <div className="h-screen bg-[#11192D]">
       {/* 顶部导航栏 — fixed，深色 */}
       <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-[#2a2a2a] bg-[#1a1a1a] px-5">
         <Link

@@ -343,7 +343,7 @@ export function PsdEditor({ template }: { template: Template }) {
   }
 
   return (
-    <div className="h-screen bg-[#111]">
+    <div className="h-screen bg-[#11192D]">
       <header className="fixed inset-x-0 top-0 z-20 flex h-14 items-center gap-3 border-b border-[#2a2a2a] bg-[#1a1a1a] px-5">
         <Link
           href="/"
@@ -365,7 +365,7 @@ export function PsdEditor({ template }: { template: Template }) {
       {/* 预览区 */}
       <div
         ref={containerRef}
-        className="fixed bottom-0 left-0 right-[320px] top-14 flex items-center justify-center overflow-auto bg-[#111]"
+        className="fixed bottom-0 left-0 right-[320px] top-14 flex items-center justify-center overflow-auto bg-[#11192D]"
       >
         {loading ? (
           <div className="flex flex-col items-center gap-3">
@@ -737,7 +737,7 @@ export function PsdEditor({ template }: { template: Template }) {
             type="button"
             onClick={handleExport}
             disabled={exporting || loading}
-            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#11192D] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
           >
             {exporting ? (
               <Loader2 className="size-4 animate-spin" />

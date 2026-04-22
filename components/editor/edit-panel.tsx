@@ -158,7 +158,7 @@ export function EditPanel({
           type="button"
           onClick={onExport}
           disabled={exporting}
-          className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
+          className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#11192D] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
         >
           {exporting ? (
             <Loader2 className="size-4 animate-spin" />
