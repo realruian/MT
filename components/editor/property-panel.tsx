@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import { FONT_FAMILIES } from "@/lib/fonts";
@@ -41,9 +41,6 @@ function normalizeWeight(w: string | undefined): string {
 /** 输入框通用样式 */
 const inputCls =
   "h-8 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#11192D] outline-none focus:border-[#bbb]";
-const readonlyCls =
-  "flex h-8 items-center gap-2 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-sm text-[#11192D]";
-
 export function PropertyPanel({
   template,
   layers,
@@ -108,9 +105,13 @@ export function PropertyPanel({
       {!selectedLayer && !selectedGroup && (
         <section>
           <h3 className="mb-3 text-[14px] text-[#11192D]">画布尺寸</h3>
-          <div className="flex gap-2">
-            <CanvasSizeBox label="W" value={canvasW} />
-            <CanvasSizeBox label="H" value={canvasH} />
+          <div className="grid grid-cols-2 gap-2">
+            <FieldBox label="W">
+              <FieldValue>{canvasW}</FieldValue>
+            </FieldBox>
+            <FieldBox label="H">
+              <FieldValue>{canvasH}</FieldValue>
+            </FieldBox>
           </div>
         </section>
       )}
@@ -120,32 +121,32 @@ export function PropertyPanel({
         <section>
           <h3 className="mb-3 text-[14px] text-[#11192D]">选中模块</h3>
           <div className="grid grid-cols-2 gap-2">
-            <PropertyField label="X">
+            <FieldBox label="X">
               <input
                 type="number"
                 value={Math.round(eff(selectedGroup, "x") as number)}
                 onChange={(e) => setModulePos(selectedGroup, "x", e.target.value)}
-                className={inputCls}
+                className={fieldInputCls}
               />
-            </PropertyField>
-            <PropertyField label="Y">
+            </FieldBox>
+            <FieldBox label="Y">
               <input
                 type="number"
                 value={Math.round(eff(selectedGroup, "y") as number)}
                 onChange={(e) => setModulePos(selectedGroup, "y", e.target.value)}
-                className={inputCls}
+                className={fieldInputCls}
               />
-            </PropertyField>
-            <PropertyField label="W">
-              <div className={readonlyCls}>
+            </FieldBox>
+            <FieldBox label="W">
+              <FieldValue>
                 {Math.round(eff(selectedGroup, "width") as number)}
-              </div>
-            </PropertyField>
-            <PropertyField label="H">
-              <div className={readonlyCls}>
+              </FieldValue>
+            </FieldBox>
+            <FieldBox label="H">
+              <FieldValue>
                 {Math.round(eff(selectedGroup, "height") as number)}
-              </div>
-            </PropertyField>
+              </FieldValue>
+            </FieldBox>
           </div>
           <div className="mt-3 flex gap-2">
             <button
@@ -173,32 +174,32 @@ export function PropertyPanel({
         <section>
           <h3 className="mb-3 text-[14px] text-[#11192D]">选中元素</h3>
           <div className="grid grid-cols-2 gap-2">
-            <PropertyField label="X">
+            <FieldBox label="X">
               <input
                 type="number"
                 value={Math.round(eff(selectedLayer, "x") as number)}
                 onChange={(e) => setNum(selectedLayer, "x", e.target.value)}
-                className={inputCls}
+                className={fieldInputCls}
               />
-            </PropertyField>
-            <PropertyField label="Y">
+            </FieldBox>
+            <FieldBox label="Y">
               <input
                 type="number"
                 value={Math.round(eff(selectedLayer, "y") as number)}
                 onChange={(e) => setNum(selectedLayer, "y", e.target.value)}
-                className={inputCls}
+                className={fieldInputCls}
               />
-            </PropertyField>
-            <PropertyField label="W">
-              <div className={readonlyCls}>
+            </FieldBox>
+            <FieldBox label="W">
+              <FieldValue>
                 {Math.round(eff(selectedLayer, "width") as number)}
-              </div>
-            </PropertyField>
-            <PropertyField label="H">
-              <div className={readonlyCls}>
+              </FieldValue>
+            </FieldBox>
+            <FieldBox label="H">
+              <FieldValue>
                 {Math.round(eff(selectedLayer, "height") as number)}
-              </div>
-            </PropertyField>
+              </FieldValue>
+            </FieldBox>
           </div>
         </section>
       )}
@@ -242,15 +243,29 @@ export function PropertyPanel({
 
 // --- 子组件（提到顶层，避免父 re-render 时被当成新类型而 unmount，导致 textarea 焦点丢失） ---
 
-/** 画布尺寸 W/H 只读胶囊：灰底圆角，label 左 value 右，label 色浅 value 深 */
-function CanvasSizeBox({ label, value }: { label: string; value: number }) {
+/** 统一的字段胶囊：灰底圆角 + 12px 左右内边距；label 左（浅）、children 右（深）。
+ *  用于 X / Y / W / H / 画布尺寸等展示框。宽度由父容器 grid / flex 决定。 */
+function FieldBox({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex h-8 w-[104px] items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3">
-      <span className="text-[14px] text-[#7c889c]">{label}</span>
-      <span className="text-[14px] text-[#11192D]">{value}</span>
+    <div className="flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3">
+      <span className="shrink-0 text-[14px] text-[#7c889c]">{label}</span>
+      {children}
     </div>
   );
 }
+
+/** 胶囊内 readonly 数值展示 */
+function FieldValue({ children }: { children: ReactNode }) {
+  return (
+    <span className="min-w-0 flex-1 truncate text-[14px] text-[#11192D]">
+      {children}
+    </span>
+  );
+}
+
+/** 胶囊内 number input */
+const fieldInputCls =
+  "min-w-0 flex-1 bg-transparent text-[14px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 interface EffFn {
   <K extends keyof PsdLayer>(l: PsdLayer, k: K): PsdLayer[K];
