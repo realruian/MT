@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 const navItems = [
   { id: "home", src: "/icons/home.svg", label: "首页" },
@@ -11,8 +11,25 @@ const navItems = [
   { id: "admin", src: "/icons/grid.svg", label: "管理后台", href: "/admin" },
 ] as const;
 
+type NavId = (typeof navItems)[number]["id"];
+
+/** 根据当前路径推导激活项：
+ *  /            → home
+ *  /editor/...  → generate（AI 生成）
+ *  /admin...    → admin
+ *  其他         → null（不激活任何项）
+ */
+function getActiveId(pathname: string | null): NavId | null {
+  if (!pathname) return null;
+  if (pathname === "/") return "home";
+  if (pathname.startsWith("/editor")) return "generate";
+  if (pathname.startsWith("/admin")) return "admin";
+  return null;
+}
+
 export function SidebarNav() {
-  const [activeId, setActiveId] = useState<string>("home");
+  const pathname = usePathname();
+  const activeId = getActiveId(pathname);
 
   return (
     <aside
@@ -40,7 +57,6 @@ export function SidebarNav() {
             type="button"
             aria-label={item.label}
             aria-pressed={active}
-            onClick={() => setActiveId(item.id)}
             className={[cls, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-2 rounded-sm"].join(" ")}
           >
             <Image src={item.src} alt="" width={24} height={24} className="size-6 object-contain" aria-hidden />
