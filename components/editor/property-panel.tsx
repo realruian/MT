@@ -103,18 +103,14 @@ export function PropertyPanel({
     selectedLayer?.layerType === "background";
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-[#eee] p-5">
+    <aside className="flex w-[240px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-[#eee] px-3 py-5">
       {/* 状态 1：什么都没选中 → 仅显示画布尺寸 */}
       {!selectedLayer && !selectedGroup && (
         <section>
           <h3 className="mb-3 text-[14px] text-[#11192D]">画布尺寸</h3>
-          <div className="grid grid-cols-2 gap-2">
-            <PropertyField label="W">
-              <div className={readonlyCls}>{canvasW}</div>
-            </PropertyField>
-            <PropertyField label="H">
-              <div className={readonlyCls}>{canvasH}</div>
-            </PropertyField>
+          <div className="flex gap-2">
+            <CanvasSizeBox label="W" value={canvasW} />
+            <CanvasSizeBox label="H" value={canvasH} />
           </div>
         </section>
       )}
@@ -245,6 +241,16 @@ export function PropertyPanel({
 }
 
 // --- 子组件（提到顶层，避免父 re-render 时被当成新类型而 unmount，导致 textarea 焦点丢失） ---
+
+/** 画布尺寸 W/H 只读胶囊：灰底圆角，label 左 value 右，label 色浅 value 深 */
+function CanvasSizeBox({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex h-8 w-[104px] items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3">
+      <span className="text-[14px] text-[#7c889c]">{label}</span>
+      <span className="text-[14px] text-[#11192D]">{value}</span>
+    </div>
+  );
+}
 
 interface EffFn {
   <K extends keyof PsdLayer>(l: PsdLayer, k: K): PsdLayer[K];
