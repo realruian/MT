@@ -2,7 +2,7 @@ import Image from "next/image";
 
 export function TopBar() {
   return (
-    <div className="fixed left-0 right-0 top-0 z-50 flex h-[60px] items-center justify-end px-6">
+    <div className="fixed left-0 right-0 top-0 z-50 flex h-[60px] items-center justify-end bg-black/[0.06] px-6">
       <div className="flex items-center gap-2">
         <div className="size-[30px] overflow-hidden rounded-full">
           <Image
