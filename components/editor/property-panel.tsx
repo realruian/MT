@@ -357,7 +357,6 @@ function TextFields({
   setStr: (l: PsdLayer, k: StrKey, v: string) => void;
   setNum: (l: PsdLayer, k: NumKey, v: string) => void;
 }) {
-  const textContent = (eff(layer, "textContent") as string | undefined) ?? "";
   const fontFamily = (eff(layer, "fontFamily") as string | undefined) ?? "";
   const fontWeight = normalizeWeight(eff(layer, "fontWeight") as string | undefined);
   const fontSize = eff(layer, "fontSize") as number | undefined;
@@ -395,15 +394,6 @@ function TextFields({
 
   return (
     <div className="grid grid-cols-2 gap-2">
-      <PropertyField label="文字内容" fullWidth>
-        <textarea
-          rows={2}
-          value={textContent}
-          onChange={(e) => setStr(layer, "textContent", e.target.value)}
-          className="w-full resize-none rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2 text-sm text-[#11192D] outline-none focus:border-[#11192D]"
-        />
-      </PropertyField>
-
       {/* 字体：无前缀 label，仅值 + 下拉箭头，占满整行 */}
       <FieldBox fullWidth trailing={<FieldChevron />}>
         <select
