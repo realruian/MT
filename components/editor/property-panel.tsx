@@ -100,7 +100,7 @@ export function PropertyPanel({
     selectedLayer?.layerType === "background";
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col gap-6 overflow-y-auto border-l border-[#eee] px-3 py-5">
+    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#eee] [&>section]:border-t [&>section]:border-[#eee] [&>section]:px-3 [&>section]:py-5 [&>section:first-child]:border-t-0">
       {/* 状态 1：什么都没选中 → 仅显示画布尺寸 */}
       {!selectedLayer && !selectedGroup && (
         <section>
@@ -204,7 +204,7 @@ export function PropertyPanel({
         </section>
       )}
 
-      {/* 状态 2：文字元素专属 —— 文字 + 填充颜色 */}
+      {/* 状态 2：文字元素专属 —— 文字 + 填充颜色（内含不透明度） */}
       {selectedLayer && isText && (
         <>
           <section>
@@ -213,7 +213,12 @@ export function PropertyPanel({
           </section>
           <section>
             <h3 className="mb-3 text-[14px] text-[#11192D]">填充颜色</h3>
-            <ColorField layer={selectedLayer} eff={eff} setStr={setStr} />
+            <FillColorField
+              layer={selectedLayer}
+              eff={eff}
+              setStr={setStr}
+              setNum={setNum}
+            />
           </section>
         </>
       )}
@@ -230,8 +235,8 @@ export function PropertyPanel({
         </section>
       )}
 
-      {/* 状态 2 / 3 共用：不透明度 */}
-      {selectedLayer && (isText || isImage) && (
+      {/* 图片元素：单独的不透明度（文字元素的不透明度已合并进填充颜色） */}
+      {selectedLayer && isImage && (
         <section>
           <h3 className="mb-3 text-[14px] text-[#11192D]">不透明度</h3>
           <OpacityField layer={selectedLayer} eff={eff} setNum={setNum} />
@@ -484,45 +489,79 @@ function TextFields({
       </FieldBox>
 
       {/* 对齐按钮组：无 label，直接满行（不是 FieldBox，保留原 AlignButtons 视觉） */}
-      <div className="col-span-2">
-        <AlignButtons
-          value={textAlign}
-          onChange={(v) => setStr(layer, "textAlign", v)}
-        />
-      </div>
+      <AlignButtons
+        value={textAlign}
+        onChange={(v) => setStr(layer, "textAlign", v)}
+      />
     </div>
   );
 }
 
-function ColorField({
+/** 填充颜色胶囊：色块 + hex 文本 + 分隔线 + 不透明度% */
+function FillColorField({
   layer,
   eff,
   setStr,
+  setNum,
 }: {
   layer: PsdLayer;
   eff: EffFn;
   setStr: (l: PsdLayer, k: StrKey, v: string) => void;
+  setNum: (l: PsdLayer, k: NumKey, v: string) => void;
 }) {
   const rawColor = (eff(layer, "fontColor") as string | undefined) ?? "#000000";
   // <input type="color"> 只接受 #rrggbb 小写 6 位
   const safeColor = /^#[0-9a-fA-F]{6}$/.test(rawColor)
     ? rawColor.toLowerCase()
     : "#000000";
-  const display = safeColor.toUpperCase();
+  const displayHex = safeColor.slice(1).toUpperCase();
+
+  const opacity = eff(layer, "opacity") as number | undefined;
+  const percent = typeof opacity === "number" ? Math.round(opacity * 100) : 100;
+
   return (
-    <div className="flex items-center gap-2">
-      <input
-        type="color"
-        value={safeColor}
-        onChange={(e) => setStr(layer, "fontColor", e.target.value)}
-        className="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-[#e5e5e5] bg-[#f5f5f5] p-1"
-      />
+    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-2">
+      {/* 色块：叠一个透明 input[type=color] 覆盖，实现点击弹原生颜色选择器 */}
+      <label className="relative flex size-6 shrink-0 cursor-pointer overflow-hidden rounded border border-white/80">
+        <span
+          className="absolute inset-0"
+          style={{ backgroundColor: safeColor }}
+          aria-hidden
+        />
+        <input
+          type="color"
+          value={safeColor}
+          onChange={(e) => setStr(layer, "fontColor", e.target.value)}
+          className="absolute inset-0 size-full cursor-pointer opacity-0"
+        />
+      </label>
+
+      {/* hex 文本输入：不带 # 前缀 */}
       <input
         type="text"
-        value={display}
-        onChange={(e) => setStr(layer, "fontColor", e.target.value)}
-        className={`${inputCls} flex-1`}
+        value={displayHex}
+        onChange={(e) => {
+          const raw = e.target.value.trim().replace(/^#/, "");
+          setStr(layer, "fontColor", raw ? `#${raw}` : "#000000");
+        }}
+        className="min-w-0 flex-1 bg-transparent text-[14px] text-[#11192D] outline-none"
       />
+
+      {/* 竖向分隔线 */}
+      <div className="h-4 w-px bg-[#11192D]/20" />
+
+      {/* 不透明度 % */}
+      <input
+        type="number"
+        min={0}
+        max={100}
+        value={percent}
+        onChange={(e) =>
+          setNum(layer, "opacity", String(Number(e.target.value) / 100))
+        }
+        className="w-8 min-w-0 bg-transparent text-right text-[14px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+      />
+      <span className="shrink-0 text-[14px] text-[#11192D]">%</span>
     </div>
   );
 }
@@ -661,7 +700,7 @@ function AlignButtons({
     { id: "justify", icon: AlignJustify, label: "两端对齐" },
   ];
   return (
-    <div className="flex rounded-md border border-[#e5e5e5] bg-[#f5f5f5] p-0.5">
+    <div className="col-span-2 flex h-8 items-center rounded-[8px] bg-[#eaecf0] p-1">
       {options.map(({ id, icon: Icon, label }) => {
         const active = value === id;
         return (
@@ -672,11 +711,11 @@ function AlignButtons({
             aria-pressed={active}
             onClick={() => onChange(id)}
             className={[
-              "flex h-7 flex-1 items-center justify-center rounded transition-colors",
-              active ? "bg-white text-[#11192D]" : "text-[#999] hover:text-[#11192D]",
+              "flex h-6 flex-1 items-center justify-center rounded-[6px] transition-colors",
+              active ? "bg-white text-[#11192D]" : "text-[#7c889c] hover:text-[#11192D]",
             ].join(" ")}
           >
-            <Icon className="size-3.5" />
+            <Icon className="size-4" />
           </button>
         );
       })}
