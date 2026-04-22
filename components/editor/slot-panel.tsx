@@ -18,9 +18,9 @@ function truncateName(name: string): string {
 
 export function SlotPanel({ slots, activeSlotId, onSelect, onDelete }: SlotPanelProps) {
   return (
-    <aside className="flex w-[260px] shrink-0 flex-col border-r border-[#eee]">
-      <div className="px-6 py-5 text-[14px] text-[#11192D]">资源位</div>
-      <ul className="flex flex-1 flex-col gap-2 overflow-y-auto px-3 pb-3">
+    <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#eee]">
+      <div className="px-5 py-5 text-[14px] text-[#11192D]">资源位</div>
+      <ul className="flex flex-1 flex-col gap-2 overflow-y-auto px-5 pb-5">
         {slots.map((slot) => (
           <SlotItem
             key={slot.id}
@@ -73,7 +73,12 @@ function SlotItem({
             />
           ) : null}
         </div>
-        <span className="text-[16px] text-[#4F607A]">{displayName}</span>
+        <div className="min-w-0 flex-1 leading-tight">
+          <p className="truncate text-[16px] text-[#4F607A]">{displayName}</p>
+          <p className="truncate text-[11px] text-[#999]">
+            {slot.width} × {slot.height}
+          </p>
+        </div>
       </button>
 
       {canDelete && (

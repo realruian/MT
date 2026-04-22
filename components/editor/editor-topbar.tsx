@@ -19,7 +19,7 @@ export function EditorTopbar({
   const router = useRouter();
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#eee] px-6">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#eee] px-5">
       {/* 面包屑 */}
       <div className="flex items-center gap-2 text-sm text-[#666]">
         <span>全套延展</span>
