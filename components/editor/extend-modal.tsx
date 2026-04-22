@@ -83,7 +83,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
             return (
               <div
                 key={preset.id}
-                className="rounded-[10px] bg-[#eef0f3] px-4 py-3"
+                className="rounded-[10px] bg-[#F4F6F8] px-4 py-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* 左：组名 + 尺寸 items */}
