@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import { FONT_FAMILIES } from "@/lib/fonts";
 
@@ -257,16 +257,20 @@ function FieldBox({
   children,
   trailing,
   fullWidth,
+  iconPrefix,
 }: {
   label?: ReactNode;
   children: ReactNode;
   trailing?: ReactNode;
   fullWidth?: boolean;
+  /** label 是 icon 时，左内边距从 12px 收紧到 4px */
+  iconPrefix?: boolean;
 }) {
   return (
     <div
       className={[
-        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3",
+        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] pr-3",
+        iconPrefix ? "pl-1" : "pl-3",
         fullWidth ? "col-span-2" : "",
       ]
         .filter(Boolean)
@@ -352,6 +356,36 @@ function SelectFieldBox({
   );
 }
 
+/** 数字字段的上下调整按钮（替代 number input 右侧的装饰性 chevron） */
+function FieldSpinner({
+  onUp,
+  onDown,
+}: {
+  onUp: () => void;
+  onDown: () => void;
+}) {
+  return (
+    <div className="flex h-full flex-col items-center justify-center gap-0 text-[#7c889c]">
+      <button
+        type="button"
+        aria-label="增加"
+        onClick={onUp}
+        className="flex h-3 items-center transition-colors hover:text-[#11192D]"
+      >
+        <ChevronUp className="size-3" strokeWidth={2.5} />
+      </button>
+      <button
+        type="button"
+        aria-label="减少"
+        onClick={onDown}
+        className="flex h-3 items-center transition-colors hover:text-[#11192D]"
+      >
+        <ChevronDown className="size-3" strokeWidth={2.5} />
+      </button>
+    </div>
+  );
+}
+
 /** 行高 icon（引用 public/icons/行高.svg） */
 function LineHeightIcon() {
   return (
@@ -378,11 +412,6 @@ function LetterSpacingIcon() {
       aria-hidden
     />
   );
-}
-
-/** 通用尾部下拉箭头 */
-function FieldChevron() {
-  return <ChevronDown className="size-4" />;
 }
 
 interface EffFn {
@@ -458,8 +487,23 @@ function TextFields({
         }))}
       />
 
-      {/* 字号：无 label，带下拉箭头（装饰性） */}
-      <FieldBox trailing={<FieldChevron />}>
+      {/* 字号：无 label，右侧上下调整 */}
+      <FieldBox
+        trailing={
+          <FieldSpinner
+            onUp={() =>
+              setNum(layer, "fontSize", String((fontSize ?? 12) + 1))
+            }
+            onDown={() =>
+              setNum(
+                layer,
+                "fontSize",
+                String(Math.max(1, (fontSize ?? 12) - 1)),
+              )
+            }
+          />
+        }
+      >
         <input
           type="number"
           value={fontSize ?? 12}
@@ -468,8 +512,25 @@ function TextFields({
         />
       </FieldBox>
 
-      {/* 行高：前缀 icon，带下拉箭头 */}
-      <FieldBox label={<LineHeightIcon />} trailing={<FieldChevron />}>
+      {/* 行高：前缀 icon（pl-1 = 4px），右侧上下调整 */}
+      <FieldBox
+        iconPrefix
+        label={<LineHeightIcon />}
+        trailing={
+          <FieldSpinner
+            onUp={() =>
+              setNum(layer, "lineHeight", String((lineHeight ?? 0) + 1))
+            }
+            onDown={() =>
+              setNum(
+                layer,
+                "lineHeight",
+                String(Math.max(0, (lineHeight ?? 0) - 1)),
+              )
+            }
+          />
+        }
+      >
         <input
           type="number"
           value={lineHeight ?? ""}
@@ -478,8 +539,29 @@ function TextFields({
         />
       </FieldBox>
 
-      {/* 字间距：前缀 icon，带下拉箭头 */}
-      <FieldBox label={<LetterSpacingIcon />} trailing={<FieldChevron />}>
+      {/* 字间距：前缀 icon（pl-1 = 4px），右侧上下调整 */}
+      <FieldBox
+        iconPrefix
+        label={<LetterSpacingIcon />}
+        trailing={
+          <FieldSpinner
+            onUp={() =>
+              setNum(
+                layer,
+                "letterSpacing",
+                String((letterSpacing ?? 0) + 1),
+              )
+            }
+            onDown={() =>
+              setNum(
+                layer,
+                "letterSpacing",
+                String((letterSpacing ?? 0) - 1),
+              )
+            }
+          />
+        }
+      >
         <input
           type="number"
           value={letterSpacing ?? ""}
