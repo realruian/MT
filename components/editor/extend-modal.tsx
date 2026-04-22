@@ -100,12 +100,33 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                             key={size.id}
                             className="flex cursor-pointer items-center gap-2 text-[14px] text-[#11192D]"
                           >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => togglePick(preset.id, size.id)}
-                              className="size-4 cursor-pointer accent-[#11192D]"
-                            />
+                            {/* 自定义勾选框：未选=#7C889C，选中=#11192D，勾始终白色 */}
+                            <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() =>
+                                  togglePick(preset.id, size.id)
+                                }
+                                className="peer sr-only"
+                              />
+                              <span
+                                aria-hidden
+                                className="absolute inset-0 rounded-[4px] bg-[#7C889C] transition-colors peer-checked:bg-[#11192D]"
+                              />
+                              <svg
+                                aria-hidden
+                                viewBox="0 0 12 12"
+                                fill="none"
+                                stroke="white"
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="pointer-events-none relative size-3 opacity-0 peer-checked:opacity-100"
+                              >
+                                <path d="M2 6.5 L5 9.5 L10 3" />
+                              </svg>
+                            </span>
                             {size.label}
                           </label>
                         );
