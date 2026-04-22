@@ -88,7 +88,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                 <div className="flex items-start justify-between gap-4">
                   {/* 左：组名 + 尺寸 items */}
                   <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-medium text-[#11192D]">
+                    <div className="text-[14px] font-normal text-[#11192D]">
                       {preset.name}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
