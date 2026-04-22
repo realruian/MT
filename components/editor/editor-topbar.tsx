@@ -32,7 +32,7 @@ export function EditorTopbar({
         <button
           type="button"
           onClick={onExtend}
-          className="h-8 rounded-lg bg-[#E9ECF1] px-4 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
+          className="h-8 rounded-lg bg-[#E9ECF1] px-3 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
         >
           一键拓展
         </button>
@@ -40,7 +40,7 @@ export function EditorTopbar({
           type="button"
           onClick={onDownload}
           disabled={exporting}
-          className="flex h-8 items-center gap-1.5 rounded-lg bg-[#11192D] px-4 text-[16px] font-medium text-white transition-colors hover:bg-[#000] disabled:cursor-not-allowed disabled:opacity-60"
+          className="flex h-8 items-center gap-1.5 rounded-lg bg-[#11192D] px-3 text-[16px] font-medium text-white transition-colors hover:bg-[#000] disabled:cursor-not-allowed disabled:opacity-60"
         >
           {exporting ? (
             <Loader2 className="size-4 animate-spin" />
@@ -53,7 +53,7 @@ export function EditorTopbar({
           type="button"
           aria-label="关闭编辑器"
           onClick={() => router.push("/")}
-          className="flex size-9 items-center justify-center rounded-lg text-[#666] transition-colors hover:bg-[#f5f5f5] hover:text-[#11192D]"
+          className="ml-3 flex size-8 items-center justify-center rounded-lg text-[#666] transition-colors hover:bg-[#f5f5f5] hover:text-[#11192D]"
         >
           <X className="size-5" />
         </button>
