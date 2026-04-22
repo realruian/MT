@@ -558,7 +558,7 @@ function AlignButtons({
             onClick={() => onChange(id)}
             className={[
               "flex h-7 flex-1 items-center justify-center rounded transition-colors",
-              active ? "bg-white text-[#11192D] shadow-sm" : "text-[#999] hover:text-[#11192D]",
+              active ? "bg-white text-[#11192D]" : "text-[#999] hover:text-[#11192D]",
             ].join(" ")}
           >
             <Icon className="size-3.5" />
