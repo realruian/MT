@@ -57,7 +57,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
       onClick={onClose}
     >
       <div
-        className="flex max-h-[80vh] w-[720px] flex-col rounded-[12px] bg-white shadow-xl"
+        className="flex h-[616px] w-[1000px] flex-col rounded-[12px] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 —— 无底部分割线 */}
@@ -83,7 +83,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
             return (
               <div
                 key={preset.id}
-                className="rounded-[10px] bg-[#F4F6F8] px-4 py-3"
+                className="h-[74px] rounded-[10px] bg-[#F4F6F8] px-4 py-3"
               >
                 <div className="flex items-start justify-between gap-4">
                   {/* 左：组名 + 尺寸 items */}
