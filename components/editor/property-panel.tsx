@@ -4,7 +4,6 @@ import { useRef, useState, type ReactNode } from "react";
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import { FONT_FAMILIES } from "@/lib/fonts";
-import { PropertyField } from "./property-field";
 
 interface PropertyPanelProps {
   template: Template;
