@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type ReactNode } from "react";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import { FONT_FAMILIES } from "@/lib/fonts";
 import { PropertyField } from "./property-field";
@@ -243,13 +243,41 @@ export function PropertyPanel({
 
 // --- 子组件（提到顶层，避免父 re-render 时被当成新类型而 unmount，导致 textarea 焦点丢失） ---
 
-/** 统一的字段胶囊：灰底圆角 + 12px 左右内边距；label 左（浅）、children 右（深）。
- *  用于 X / Y / W / H / 画布尺寸等展示框。宽度由父容器 grid / flex 决定。 */
-function FieldBox({ label, children }: { label: string; children: ReactNode }) {
+/** 统一的字段胶囊：灰底圆角 + 12px 左右内边距。
+ *  - label：左侧前缀，可为文字字符串（"X" / "W"）或 icon（ReactNode），省略则无前缀
+ *  - trailing：右侧尾部（常用于 ChevronDown 箭头）
+ *  - fullWidth：grid 中占满整行（col-span-2）*/
+function FieldBox({
+  label,
+  children,
+  trailing,
+  fullWidth,
+}: {
+  label?: ReactNode;
+  children: ReactNode;
+  trailing?: ReactNode;
+  fullWidth?: boolean;
+}) {
   return (
-    <div className="flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3">
-      <span className="shrink-0 text-[14px] text-[#7c889c]">{label}</span>
+    <div
+      className={[
+        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3",
+        fullWidth ? "col-span-2" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      {label != null && (
+        <span className="flex shrink-0 items-center text-[14px] text-[#7c889c]">
+          {label}
+        </span>
+      )}
       {children}
+      {trailing != null && (
+        <span className="pointer-events-none flex shrink-0 items-center text-[#7c889c]">
+          {trailing}
+        </span>
+      )}
     </div>
   );
 }
@@ -263,9 +291,56 @@ function FieldValue({ children }: { children: ReactNode }) {
   );
 }
 
-/** 胶囊内 number input */
+/** 胶囊内 number input（隐藏 spinner 箭头 + 透明底） */
 const fieldInputCls =
   "min-w-0 flex-1 bg-transparent text-[14px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+
+/** 胶囊内 select（appearance-none 去掉浏览器原生箭头 + 透明底） */
+const fieldSelectCls =
+  "min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[14px] text-[#11192D] outline-none";
+
+/** 行高 icon（上下两条横线 + 中间 A） */
+function LineHeightIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <line x1="2.5" y1="2.5" x2="13.5" y2="2.5" />
+      <line x1="2.5" y1="13.5" x2="13.5" y2="13.5" />
+      <path d="M5 11 L8 5 L11 11 M6.2 8.8 L9.8 8.8" />
+    </svg>
+  );
+}
+
+/** 字间距 icon（左右两条竖线 + 中间 A） */
+function LetterSpacingIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      aria-hidden
+    >
+      <line x1="2.5" y1="3" x2="2.5" y2="13" />
+      <line x1="13.5" y1="3" x2="13.5" y2="13" />
+      <path d="M5.5 11.5 L8 5 L10.5 11.5 M6.5 9.5 L9.5 9.5" />
+    </svg>
+  );
+}
+
+/** 通用尾部下拉箭头 */
+function FieldChevron() {
+  return <ChevronDown className="size-4" />;
+}
 
 interface EffFn {
   <K extends keyof PsdLayer>(l: PsdLayer, k: K): PsdLayer[K];
@@ -329,11 +404,12 @@ function TextFields({
         />
       </PropertyField>
 
-      <PropertyField label="字体" fullWidth>
+      {/* 字体：无前缀 label，仅值 + 下拉箭头，占满整行 */}
+      <FieldBox fullWidth trailing={<FieldChevron />}>
         <select
           value={fontFamily}
           onChange={(e) => setStr(layer, "fontFamily", e.target.value)}
-          className={inputCls}
+          className={fieldSelectCls}
         >
           {familyOptions.map((f) => (
             <option key={f.family} value={f.family}>
@@ -341,13 +417,14 @@ function TextFields({
             </option>
           ))}
         </select>
-      </PropertyField>
+      </FieldBox>
 
-      <PropertyField label="字重">
+      {/* 字重：无 label，带下拉箭头 */}
+      <FieldBox trailing={<FieldChevron />}>
         <select
           value={fontWeight}
           onChange={(e) => setStr(layer, "fontWeight", e.target.value)}
-          className={inputCls}
+          className={fieldSelectCls}
         >
           {weightOptions.map((v) => (
             <option key={v.weight} value={v.weight}>
@@ -355,9 +432,10 @@ function TextFields({
             </option>
           ))}
         </select>
-      </PropertyField>
+      </FieldBox>
 
-      <FieldBox label="字号">
+      {/* 字号：无 label，带下拉箭头（装饰性） */}
+      <FieldBox trailing={<FieldChevron />}>
         <input
           type="number"
           value={fontSize ?? ""}
@@ -366,7 +444,8 @@ function TextFields({
         />
       </FieldBox>
 
-      <FieldBox label="行高">
+      {/* 行高：前缀 icon，带下拉箭头 */}
+      <FieldBox label={<LineHeightIcon />} trailing={<FieldChevron />}>
         <input
           type="number"
           value={lineHeight ?? ""}
@@ -375,7 +454,8 @@ function TextFields({
         />
       </FieldBox>
 
-      <FieldBox label="字间距">
+      {/* 字间距：前缀 icon，带下拉箭头 */}
+      <FieldBox label={<LetterSpacingIcon />} trailing={<FieldChevron />}>
         <input
           type="number"
           value={letterSpacing ?? ""}
@@ -384,12 +464,13 @@ function TextFields({
         />
       </FieldBox>
 
-      <PropertyField label="对齐" fullWidth>
+      {/* 对齐按钮组：无 label，直接满行（不是 FieldBox，保留原 AlignButtons 视觉） */}
+      <div className="col-span-2">
         <AlignButtons
           value={textAlign}
           onChange={(v) => setStr(layer, "textAlign", v)}
         />
-      </PropertyField>
+      </div>
     </div>
   );
 }
