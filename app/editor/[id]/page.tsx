@@ -19,12 +19,12 @@ export default async function EditorPage({
   if (!template) notFound();
 
   // AppShell 贡献 pt-[60px] 让开 TopBar。
-  // 这层 wrapper 继续在四周留出 16px 间距，让卡片四周透出外壳背景。
-  // 卡片高度：100vh - 60px(TopBar) - 16px(top) - 16px(bottom) = calc(100vh - 92px)
+  // 卡片四周间距对齐 Figma：上 20 / 右 40 / 下 40 / 左 72（左侧特意留 72 给 SidebarNav）
+  // 卡片高度：100vh - 60px(TopBar) - 20px(top) - 40px(bottom) = calc(100vh - 120px)
   if (template.templateType === "psd") {
     return (
       <AppShell>
-        <div className="flex h-[calc(100vh-60px)] pl-[72px] pr-4 pt-4 pb-4">
+        <div className="flex h-[calc(100vh-60px)] pl-[72px] pr-10 pt-5 pb-10">
           <EditorShell template={template} activity={activity} />
         </div>
       </AppShell>
