@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Check, ChevronDown, Download, Loader2, Upload } from "lucide-react";
+import { useRef } from "react";
+import { Download, Loader2, Upload } from "lucide-react";
 
 interface EditPanelProps {
   texts: Record<string, string>;
   onTextChange: (key: string, value: string) => void;
-  textColors: Record<string, string>;
-  onTextColorChange: (key: string, color: string) => void;
   textFields: { key: string; label: string }[];
   colorThemes: { name: string; values: Record<string, string> }[];
   activeColorIndex: number;
@@ -18,112 +16,9 @@ interface EditPanelProps {
   exporting: boolean;
 }
 
-const TEXT_COLORS = [
-  { value: "#000000", label: "黑色" },
-  { value: "#ffffff", label: "白色" },
-];
-
-function ColorSwatch({
-  fieldKey,
-  currentColor,
-  onChange,
-}: {
-  fieldKey: string;
-  currentColor: string;
-  onChange: (key: string, color: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    document.addEventListener("keydown", handleKey);
-    return () => {
-      document.removeEventListener("mousedown", handleClick);
-      document.removeEventListener("keydown", handleKey);
-    };
-  }, [open]);
-
-  const isWhite = currentColor === "#ffffff";
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        aria-label="选择文字颜色"
-        aria-haspopup="true"
-        aria-expanded={open}
-        onClick={() => setOpen(!open)}
-        className={[
-          "flex items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/20",
-          open ? "bg-[#2a2a2a]" : "hover:bg-[#222]",
-        ].join(" ")}
-      >
-        <span
-          className={[
-            "size-4 rounded",
-            isWhite ? "border border-gray-200" : "shadow-sm",
-          ].join(" ")}
-          style={{ backgroundColor: currentColor }}
-        />
-        <ChevronDown className="size-3 text-gray-400" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 top-full z-20 mt-1.5 rounded-lg border border-[#2a2a2a] bg-[#1a1a1a] p-2 shadow-lg">
-          <p className="mb-1.5 px-1 text-[12px] font-medium text-[#555]">
-            文字颜色
-          </p>
-          <div className="flex gap-1.5">
-            {TEXT_COLORS.map((c) => {
-              const active = currentColor === c.value;
-              const white = c.value === "#ffffff";
-              return (
-                <button
-                  key={c.value}
-                  type="button"
-                  aria-label={c.label}
-                  aria-pressed={active}
-                  onClick={() => {
-                    onChange(fieldKey, c.value);
-                    setOpen(false);
-                  }}
-                  className={[
-                    "relative flex size-7 items-center justify-center rounded-md transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400",
-                    white ? "border border-gray-200" : "",
-                    active ? "ring-2 ring-blue-500 ring-offset-1" : "hover:scale-110",
-                  ].join(" ")}
-                  style={{ backgroundColor: c.value }}
-                >
-                  {active && (
-                    <Check
-                      className="size-3.5"
-                      style={{ color: white ? "#000" : "#fff" }}
-                      strokeWidth={3}
-                    />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function EditPanel({
   texts,
   onTextChange,
-  textColors,
-  onTextColorChange,
   textFields,
   colorThemes,
   activeColorIndex,

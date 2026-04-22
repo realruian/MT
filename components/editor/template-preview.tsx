@@ -24,7 +24,7 @@ export const TemplatePreview = forwardRef<HTMLIFrameElement, TemplatePreviewProp
     const isReadyRef = useRef(false);
 
     const [scale, setScale] = useState(1);
-    const [fitScale, setFitScale] = useState(1);
+    const [, setFitScale] = useState(1);
     const hasManualZoom = useRef(false);
 
     const STEP = 0.1;

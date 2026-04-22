@@ -1,10 +1,9 @@
 import { NextRequest } from "next/server";
-import { put } from "@vercel/blob";
 import { getDb } from "@/lib/db";
 import { parsePsdBuffer } from "@/lib/psd-parser";
-import { clientBlobMediaUrl } from "@/lib/blob-media";
+import { localPut } from "@/lib/local-storage";
 
-const MAX_SIZE = 20 * 1024 * 1024; // 20 MB
+const MAX_SIZE = 200 * 1024 * 1024; // 200 MB
 
 function generatePsdId(): string {
   const now = Date.now().toString(36);
@@ -17,30 +16,11 @@ function generateLayerId(index: number): string {
   return `layer_${index}_${rand}`;
 }
 
-function isPrivateStorePublicAccessError(message: string): boolean {
-  return (
-    message.includes("private store") ||
-    message.includes("private access") ||
-    message.includes("Cannot use public access")
-  );
-}
-
 async function uploadToBlob(
   pathname: string,
   data: Buffer | File,
 ): Promise<{ url: string; pathname: string }> {
-  try {
-    const blob = await put(pathname, data, { access: "public", allowOverwrite: true });
-    return { url: blob.url, pathname: blob.pathname };
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "";
-    if (!isPrivateStorePublicAccessError(msg)) throw err;
-    const blob = await put(pathname, data, { access: "private", allowOverwrite: true });
-    return {
-      url: clientBlobMediaUrl(blob.pathname),
-      pathname: blob.pathname,
-    };
-  }
+  return localPut(pathname, data);
 }
 
 export async function POST(req: NextRequest) {
@@ -58,7 +38,7 @@ export async function POST(req: NextRequest) {
 
     if (file.size > MAX_SIZE) {
       return Response.json(
-        { error: `File too large (${Math.round(file.size / 1024 / 1024)}MB). Max 20MB.` },
+        { error: `File too large (${Math.round(file.size / 1024 / 1024)}MB). Max 200MB.` },
         { status: 400 },
       );
     }
@@ -94,14 +74,19 @@ export async function POST(req: NextRequest) {
       fontStyle: string | null;
       textAlign: string | null;
       lineHeight: number | null;
+      parentId: string | null;
     }> = [];
+
+    // 先给每个 ParsedLayer 分配一个稳定 id，便于后面 parentIndex → parent_id 回填
+    const layerIds: string[] = parseResult.layers.map((_, i) => generateLayerId(i));
 
     for (let i = 0; i < parseResult.layers.length; i++) {
       const layer = parseResult.layers[i];
-      const layerId = generateLayerId(i);
+      const layerId = layerIds[i];
       let imageUrl: string | null = null;
 
-      if (layer.imageBuffer) {
+      // Group 本身不产生位图；text/image 走原逻辑
+      if (layer.type !== "group" && layer.imageBuffer) {
         const ext = "png";
         const uploadResult = await uploadToBlob(
           `psd-layers/${templateId}/${layerId}.${ext}`,
@@ -109,6 +94,9 @@ export async function POST(req: NextRequest) {
         );
         imageUrl = uploadResult.url;
       }
+
+      const parentId =
+        typeof layer.parentIndex === "number" ? layerIds[layer.parentIndex] ?? null : null;
 
       layerRecords.push({
         id: layerId,
@@ -131,6 +119,7 @@ export async function POST(req: NextRequest) {
         fontStyle: layer.text?.fontStyle ?? null,
         textAlign: layer.text?.textAlign ?? null,
         lineHeight: layer.text?.lineHeight ?? null,
+        parentId,
       });
     }
 
@@ -166,6 +155,8 @@ export async function POST(req: NextRequest) {
       )
     `;
 
+    // 父 Group 必须先落库，子图层后落库；parseResult.layers 已按 [group, ...children, group, ...] 顺序
+    // 从 parser 产出，这里直接按数组顺序逐条 INSERT 即可保证 FK 约束满足。
     for (const lr of layerRecords) {
       await sql`
         INSERT INTO psd_layers (
@@ -173,13 +164,13 @@ export async function POST(req: NextRequest) {
           x, y, width, height, visible, opacity, rotation,
           image_url, text_content, font_family, font_size,
           font_color, font_weight, font_style, text_align, line_height,
-          sort_order
+          sort_order, parent_id
         ) VALUES (
           ${lr.id}, ${templateId}, ${lr.name}, ${lr.layerType}, ${lr.zIndex},
           ${lr.x}, ${lr.y}, ${lr.width}, ${lr.height}, ${lr.visible}, ${lr.opacity}, ${lr.rotation},
           ${lr.imageUrl}, ${lr.textContent}, ${lr.fontFamily}, ${lr.fontSize},
           ${lr.fontColor}, ${lr.fontWeight}, ${lr.fontStyle}, ${lr.textAlign}, ${lr.lineHeight},
-          ${lr.zIndex}
+          ${lr.zIndex}, ${lr.parentId}
         )
       `;
     }

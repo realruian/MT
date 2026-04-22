@@ -9,12 +9,31 @@ interface TemplateRow {
   width: number;
   height: number;
   html_file: string;
-  editable_fields: Template["editableFields"];
+  /** SQLite 里是 TEXT（JSON 字符串）；历史上 Neon JSONB 可能已反序列化为对象，两种都兼容 */
+  editable_fields: string | Template["editableFields"];
   sort_order: number;
   template_type?: string;
   psd_file?: string;
   canvas_width?: number;
   canvas_height?: number;
+}
+
+function parseEditableFields(
+  raw: TemplateRow["editable_fields"],
+): Template["editableFields"] {
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      return {
+        texts: parsed.texts ?? [],
+        colors: parsed.colors ?? [],
+        images: parsed.images ?? [],
+      };
+    } catch {
+      return { texts: [], colors: [], images: [] };
+    }
+  }
+  return raw ?? { texts: [], colors: [], images: [] };
 }
 
 function rowToTemplate(row: TemplateRow): Template {
@@ -26,7 +45,7 @@ function rowToTemplate(row: TemplateRow): Template {
     width: row.width,
     height: row.height,
     htmlFile: row.html_file,
-    editableFields: row.editable_fields,
+    editableFields: parseEditableFields(row.editable_fields),
     templateType: (row.template_type as "html" | "psd") ?? "html",
     psdFile: row.psd_file ?? undefined,
     canvasWidth: row.canvas_width ?? undefined,
@@ -38,7 +57,7 @@ export async function getAllTemplates(): Promise<Template[]> {
   const sql = getDb();
   const rows = (await sql`
     SELECT * FROM templates ORDER BY sort_order ASC, created_at DESC
-  `) as TemplateRow[];
+  `) as unknown as TemplateRow[];
   return rows.map(rowToTemplate);
 }
 
@@ -46,7 +65,7 @@ export async function getTemplateById(id: string): Promise<Template | null> {
   const sql = getDb();
   const rows = (await sql`
     SELECT * FROM templates WHERE id = ${id}
-  `) as TemplateRow[];
+  `) as unknown as TemplateRow[];
   if (rows.length === 0) return null;
   return rowToTemplate(rows[0]);
 }
@@ -61,7 +80,8 @@ interface PsdLayerRow {
   y: number;
   width: number;
   height: number;
-  visible: boolean;
+  /** SQLite 里是 0/1 number；取值时统一 toBoolean */
+  visible: number | boolean;
   opacity: number;
   rotation: number;
   image_url: string | null;
@@ -73,8 +93,16 @@ interface PsdLayerRow {
   font_style: string | null;
   text_align: string | null;
   line_height: number | null;
-  locked: boolean;
+  locked: number | boolean;
   sort_order: number;
+  parent_id: string | null;
+}
+
+function toBoolean(v: unknown): boolean {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  if (typeof v === "string") return v === "1" || v.toLowerCase() === "true";
+  return Boolean(v);
 }
 
 function rowToPsdLayer(row: PsdLayerRow): PsdLayer {
@@ -88,7 +116,7 @@ function rowToPsdLayer(row: PsdLayerRow): PsdLayer {
     y: row.y,
     width: row.width,
     height: row.height,
-    visible: row.visible,
+    visible: toBoolean(row.visible),
     opacity: row.opacity,
     rotation: row.rotation ?? 0,
     imageUrl: row.image_url ?? undefined,
@@ -100,7 +128,8 @@ function rowToPsdLayer(row: PsdLayerRow): PsdLayer {
     fontStyle: row.font_style ?? undefined,
     textAlign: row.text_align ?? undefined,
     lineHeight: row.line_height ?? undefined,
-    locked: row.locked ?? false,
+    locked: toBoolean(row.locked),
+    parentId: row.parent_id ?? null,
   };
 }
 
@@ -108,7 +137,7 @@ export async function getPsdLayers(templateId: string): Promise<PsdLayer[]> {
   const sql = getDb();
   const rows = (await sql`
     SELECT * FROM psd_layers WHERE template_id = ${templateId} ORDER BY sort_order ASC
-  `) as PsdLayerRow[];
+  `) as unknown as PsdLayerRow[];
   return rows.map(rowToPsdLayer);
 }
 

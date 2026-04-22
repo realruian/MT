@@ -12,7 +12,16 @@ export async function GET(
     if (rows.length === 0) {
       return Response.json({ error: "Not found" }, { status: 404 });
     }
-    return Response.json(rows[0]);
+    const row = rows[0] as Record<string, unknown>;
+    const ef = row.editable_fields;
+    if (typeof ef === "string") {
+      try {
+        row.editable_fields = JSON.parse(ef);
+      } catch {
+        row.editable_fields = { texts: [], colors: [], images: [] };
+      }
+    }
+    return Response.json(row);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return Response.json({ error: message }, { status: 500 });

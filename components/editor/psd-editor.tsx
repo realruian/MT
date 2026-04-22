@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, Loader2, Upload, Type, ImageIcon, Lock, Undo2, Redo2 } from "lucide-react";
+import { ArrowLeft, Download, Loader2, Upload, Type, ImageIcon, Lock, Undo2, Redo2, Folder, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
 
 const KNOWN_FONTS: Record<string, string> = {
@@ -76,7 +76,6 @@ export function PsdEditor({ template }: { template: Template }) {
     futureRef.current.push(snapshot);
     const prev = historyRef.current.pop()!;
     setEditState(prev);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editState]);
 
   const handleRedo = useCallback(() => {
@@ -85,7 +84,6 @@ export function PsdEditor({ template }: { template: Template }) {
     historyRef.current.push(snapshot);
     const next = futureRef.current.pop()!;
     setEditState(next);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editState]);
 
   useEffect(() => {
@@ -133,8 +131,8 @@ export function PsdEditor({ template }: { template: Template }) {
       e.preventDefault();
       const dx = (e.clientX - dragStartRef.current.mx) / scale;
       const dy = (e.clientY - dragStartRef.current.my) / scale;
-      let rawX = dragStartRef.current.lx + dx;
-      let rawY = dragStartRef.current.ly + dy;
+      const rawX = dragStartRef.current.lx + dx;
+      const rawY = dragStartRef.current.ly + dy;
 
       const draggedLayer = layers.find((l) => l.id === dragging);
       if (!draggedLayer) {
@@ -305,12 +303,44 @@ export function PsdEditor({ template }: { template: Template }) {
 
   const sortedLayers = [...layers].sort((a, b) => a.zIndex - b.zIndex);
 
-  const editableLayers = layers
-    .filter((l) => {
-      const type = getVal(l, "layerType");
-      return type === "text" || type === "image";
-    })
-    .sort((a, b) => b.zIndex - a.zIndex);
+  // Group 的有效显隐（叠加 editState 覆盖）。子层在预览中会跟随父 Group 隐藏。
+  const groupVisibility = useMemo(() => {
+    const map = new Map<string, boolean>();
+    for (const l of layers) {
+      if (l.layerType === "group") {
+        const v = editState[l.id]?.visible ?? l.visible;
+        map.set(l.id, v === true || String(v) === "true");
+      }
+    }
+    return map;
+  }, [layers, editState]);
+
+  // 顶层条目（无 parentId）按 zIndex 升序，用于编辑面板树形渲染
+  const topLevelEntries = useMemo(
+    () => layers.filter((l) => !l.parentId).sort((a, b) => a.zIndex - b.zIndex),
+    [layers],
+  );
+
+  const childrenByGroup = useMemo(() => {
+    const map = new Map<string, PsdLayer[]>();
+    for (const l of layers) {
+      if (!l.parentId) continue;
+      if (l.layerType !== "text" && l.layerType !== "image") continue;
+      if (!map.has(l.parentId)) map.set(l.parentId, []);
+      map.get(l.parentId)!.push(l);
+    }
+    for (const arr of map.values()) arr.sort((a, b) => b.zIndex - a.zIndex);
+    return map;
+  }, [layers]);
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+  function toggleGroupCollapsed(id: string) {
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   return (
     <div className="h-screen bg-[#111]">
@@ -365,6 +395,10 @@ export function PsdEditor({ template }: { template: Template }) {
               }}
             >
               {sortedLayers.map((layer) => {
+                // Group 节点只做分组容器，不渲染任何像素
+                if (layer.layerType === "group") return null;
+                // 父 Group 被整体隐藏时，子图层一并跳过
+                if (layer.parentId && groupVisibility.get(layer.parentId) === false) return null;
                 const visible = getVal(layer, "visible");
                 if (visible !== true && String(visible) !== "true") return null;
                 const type = getVal(layer, "layerType");
@@ -635,23 +669,103 @@ export function PsdEditor({ template }: { template: Template }) {
       {/* 编辑面板 */}
       <aside className="fixed bottom-0 right-0 top-14 z-10 flex w-80 flex-col border-l border-[#2a2a2a] bg-[#1a1a1a]">
         <div className="flex-1 overflow-y-auto">
-          {editableLayers.length === 0 && !loading && (
-            <p className="px-5 py-10 text-center text-sm text-[#444]">无可编辑图层</p>
-          )}
+          {(() => {
+            const hasAny = layers.some(
+              (l) => l.layerType === "text" || l.layerType === "image" || l.layerType === "group",
+            );
+            if (!hasAny && !loading) {
+              return <p className="px-5 py-10 text-center text-sm text-[#444]">无可编辑图层</p>;
+            }
+            return null;
+          })()}
 
-          {editableLayers.map((layer) => {
-            const type = getVal(layer, "layerType");
-            const pos = getLayerPos(layer);
-            const isSel = selectedLayer === layer.id;
-            return (
-              <section
-                key={layer.id}
-                id={`panel-layer-${layer.id}`}
-                className={[
-                  "border-b border-[#2a2a2a] px-5 py-4 transition-colors",
-                  isSel ? "bg-white/5" : "",
-                ].join(" ")}
-              >
+          {topLevelEntries.map((top) => {
+            // Group 模块卡片
+            if (top.layerType === "group") {
+              const children = childrenByGroup.get(top.id) ?? [];
+              const isCollapsed = collapsedGroups.has(top.id);
+              const groupVisible = groupVisibility.get(top.id) ?? true;
+              return (
+                <section
+                  key={top.id}
+                  className="border-b border-[#2a2a2a] bg-[#181818]"
+                >
+                  <div className="flex items-center gap-2 px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleGroupCollapsed(top.id)}
+                      className="flex items-center text-[#888] transition-colors hover:text-white"
+                      title={isCollapsed ? "展开模块" : "折叠模块"}
+                    >
+                      {isCollapsed ? <ChevronRight className="size-4" /> : <ChevronDown className="size-4" />}
+                    </button>
+                    <Folder className="size-4 text-amber-400" />
+                    <span className="truncate text-sm font-medium text-white">{top.name}</span>
+                    <span className="ml-1 text-xs text-[#555]">{children.length}</span>
+                    <button
+                      type="button"
+                      onClick={() => updateLayer(top.id, { visible: !groupVisible })}
+                      className="ml-auto flex items-center text-[#888] transition-colors hover:text-white"
+                      title={groupVisible ? "隐藏整组" : "显示整组"}
+                    >
+                      {groupVisible ? <Eye className="size-4" /> : <EyeOff className="size-4 text-[#555]" />}
+                    </button>
+                  </div>
+                  {!isCollapsed && (
+                    <div className="pb-1">
+                      {children.length === 0 ? (
+                        <p className="px-5 py-3 text-xs text-[#444]">模块内无可编辑图层</p>
+                      ) : (
+                        children.map((child) => renderLayerSection(child, /* indent */ true))
+                      )}
+                    </div>
+                  )}
+                </section>
+              );
+            }
+            // 顶层散层（无 Group 归属）
+            if (top.layerType === "text" || top.layerType === "image") {
+              return renderLayerSection(top, false);
+            }
+            return null;
+          })}
+        </div>
+
+        {/* 导出按钮 */}
+        <div className="shrink-0 border-t border-[#2a2a2a] p-5">
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting || loading}
+            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
+          >
+            {exporting ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            {exporting ? "导出中…" : "导出 PNG"}
+          </button>
+        </div>
+      </aside>
+    </div>
+  );
+
+  /** 单个 text/image 图层的编辑卡片。在模块内时带缩进。 */
+  function renderLayerSection(layer: PsdLayer, indent: boolean) {
+    const type = getVal(layer, "layerType");
+    const pos = getLayerPos(layer);
+    const isSel = selectedLayer === layer.id;
+    return (
+      <section
+        key={layer.id}
+        id={`panel-layer-${layer.id}`}
+        className={[
+          "border-b border-[#2a2a2a] py-4 transition-colors",
+          indent ? "pl-10 pr-5" : "px-5",
+          isSel ? "bg-white/5" : "",
+        ].join(" ")}
+      >
                 <div
                   className="mb-3 flex cursor-pointer items-center gap-2"
                   onClick={() => setSelectedLayer(isSel ? null : layer.id)}
@@ -769,29 +883,7 @@ export function PsdEditor({ template }: { template: Template }) {
                     </label>
                   </div>
                 )}
-              </section>
-            );
-          })}
-
-        </div>
-
-        {/* 导出按钮 */}
-        <div className="shrink-0 border-t border-[#2a2a2a] p-5">
-          <button
-            type="button"
-            onClick={handleExport}
-            disabled={exporting || loading}
-            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#111] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
-          >
-            {exporting ? (
-              <Loader2 className="size-4 animate-spin" />
-            ) : (
-              <Download className="size-4" />
-            )}
-            {exporting ? "导出中…" : "导出 PNG"}
-          </button>
-        </div>
-      </aside>
-    </div>
-  );
+      </section>
+    );
+  }
 }

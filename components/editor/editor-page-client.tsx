@@ -26,11 +26,12 @@ export function EditorPageClient({ template }: { template: Template }) {
     return init;
   });
 
-  const [textColors, setTextColors] = useState<Record<string, string>>(() => {
+  // 当前没有 UI 改文字颜色，保留派生值以便 buildTemplateUrl / 导出参数沿用 defaultColor
+  const textColors = useMemo<Record<string, string>>(() => {
     const init: Record<string, string> = {};
     for (const f of editableFields.texts) init[f.key] = f.defaultColor ?? "#000000";
     return init;
-  });
+  }, [editableFields.texts]);
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -48,10 +49,6 @@ export function EditorPageClient({ template }: { template: Template }) {
 
   const handleImageChange = useCallback((key: string, src: string) => {
     setImages((prev) => ({ ...prev, [key]: src }));
-  }, []);
-
-  const handleTextColorChange = useCallback((key: string, color: string) => {
-    setTextColors((prev) => ({ ...prev, [key]: color }));
   }, []);
 
   const handleExport = useCallback(async () => {
@@ -179,8 +176,6 @@ export function EditorPageClient({ template }: { template: Template }) {
       <EditPanel
         texts={texts}
         onTextChange={handleTextChange}
-        textColors={textColors}
-        onTextColorChange={handleTextColorChange}
         textFields={editableFields.texts}
         colorThemes={editableFields.colors}
         activeColorIndex={colorIndex}

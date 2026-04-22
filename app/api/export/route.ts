@@ -1,27 +1,19 @@
 import { NextRequest } from "next/server";
 import puppeteer, { type Browser } from "puppeteer-core";
-import chromium from "@sparticuz/chromium-min";
 
-const REMOTE_CHROMIUM_URL =
-  "https://github.com/Sparticuz/chromium/releases/download/v143.0.4/chromium-v143.0.4-pack.x64.tar";
+/**
+ * 本地直接启动系统安装的 Chrome（channel: "chrome"）。
+ * 生产环境 / Serverless 不再适配——这是纯本地方案。
+ */
 
 let browserPromise: Promise<Browser> | null = null;
 
 function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
-    const isLocal = process.env.NODE_ENV === "development";
-    browserPromise = isLocal
-      ? puppeteer.launch({
-          channel: "chrome",
-          args: ["--no-sandbox", "--disable-setuid-sandbox"],
-        })
-      : chromium.executablePath(REMOTE_CHROMIUM_URL).then((executablePath) =>
-          puppeteer.launch({
-            args: chromium.args,
-            executablePath,
-            headless: true,
-          }),
-        );
+    browserPromise = puppeteer.launch({
+      channel: "chrome",
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
     browserPromise.catch(() => {
       browserPromise = null;
     });
@@ -57,9 +49,7 @@ export async function POST(req: NextRequest) {
       const fullUrl = url.startsWith("http") ? url : `${origin}${url}`;
       await page.goto(fullUrl, { waitUntil: "networkidle0" });
     } else if (html) {
-      await page.setContent(html, {
-        waitUntil: "networkidle0",
-      });
+      await page.setContent(html, { waitUntil: "networkidle0" });
     }
 
     if (params && Object.keys(params).length > 0) {

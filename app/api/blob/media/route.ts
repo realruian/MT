@@ -1,6 +1,6 @@
-import { get } from "@vercel/blob";
 import { NextRequest } from "next/server";
 import { isAllowedBlobPathname } from "@/lib/blob-media";
+import { localRead, contentTypeOf } from "@/lib/local-storage";
 
 export async function GET(req: NextRequest) {
   const pathname = req.nextUrl.searchParams.get("pathname")?.trim() ?? "";
@@ -8,21 +8,17 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Invalid pathname" }, { status: 400 });
   }
 
-  try {
-    const result = await get(pathname, { access: "private" });
-    if (!result || result.statusCode !== 200 || !result.stream) {
-      return Response.json({ error: "Not found" }, { status: 404 });
-    }
-
-    const { stream, blob } = result;
-    const headers = new Headers();
-    headers.set("Content-Type", blob.contentType || "application/octet-stream");
-    headers.set("Cache-Control", "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400");
-
-    return new Response(stream, { headers });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[blob/media]", pathname, message);
-    return Response.json({ error: message }, { status: 502 });
+  const buf = localRead(pathname);
+  if (!buf) {
+    return Response.json({ error: "Not found" }, { status: 404 });
   }
+
+  const headers = new Headers();
+  headers.set("Content-Type", contentTypeOf(pathname));
+  headers.set(
+    "Cache-Control",
+    "public, max-age=604800, s-maxage=604800, stale-while-revalidate=86400",
+  );
+
+  return new Response(new Uint8Array(buf), { headers });
 }

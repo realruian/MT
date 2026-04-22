@@ -1,69 +1,32 @@
 import { getDb } from "./db";
 
+/**
+ * 本地 SQLite 的建表脚本。幂等：重复调用只建缺失的表/列/索引。
+ * JSONB → TEXT（应用层 JSON.parse / JSON.stringify），TIMESTAMPTZ → TEXT（CURRENT_TIMESTAMP）。
+ */
 export async function initDatabase() {
   const sql = getDb();
+  const db = sql.raw();
 
-  await sql`
+  db.exec(`
     CREATE TABLE IF NOT EXISTS templates (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
       category TEXT NOT NULL,
-      thumbnail TEXT NOT NULL,
+      thumbnail TEXT NOT NULL DEFAULT '',
       width INTEGER NOT NULL,
       height INTEGER NOT NULL,
-      html_file TEXT NOT NULL,
-      editable_fields JSONB NOT NULL DEFAULT '{}',
+      html_file TEXT NOT NULL DEFAULT '',
+      editable_fields TEXT NOT NULL DEFAULT '{}',
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `;
+      template_type TEXT NOT NULL DEFAULT 'html',
+      psd_file TEXT,
+      canvas_width INTEGER,
+      canvas_height INTEGER,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
 
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'templates' AND column_name = 'template_type'
-      ) THEN
-        ALTER TABLE templates ADD COLUMN template_type TEXT NOT NULL DEFAULT 'html';
-      END IF;
-    END $$
-  `;
-
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'templates' AND column_name = 'psd_file'
-      ) THEN
-        ALTER TABLE templates ADD COLUMN psd_file TEXT;
-      END IF;
-    END $$
-  `;
-
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'templates' AND column_name = 'canvas_width'
-      ) THEN
-        ALTER TABLE templates ADD COLUMN canvas_width INTEGER;
-      END IF;
-    END $$
-  `;
-
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'templates' AND column_name = 'canvas_height'
-      ) THEN
-        ALTER TABLE templates ADD COLUMN canvas_height INTEGER;
-      END IF;
-    END $$
-  `;
-
-  await sql`
     CREATE TABLE IF NOT EXISTS psd_layers (
       id TEXT PRIMARY KEY,
       template_id TEXT NOT NULL REFERENCES templates(id) ON DELETE CASCADE,
@@ -74,51 +37,25 @@ export async function initDatabase() {
       y INTEGER NOT NULL DEFAULT 0,
       width INTEGER NOT NULL DEFAULT 0,
       height INTEGER NOT NULL DEFAULT 0,
-      visible BOOLEAN NOT NULL DEFAULT true,
+      visible INTEGER NOT NULL DEFAULT 1,
       opacity REAL NOT NULL DEFAULT 1,
+      rotation REAL NOT NULL DEFAULT 0,
       image_url TEXT,
       text_content TEXT,
       font_family TEXT,
       font_size REAL,
       font_color TEXT,
       font_weight TEXT,
+      font_style TEXT DEFAULT 'normal',
       text_align TEXT,
       line_height REAL,
+      locked INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      created_at TIMESTAMPTZ DEFAULT NOW()
-    )
-  `;
+      parent_id TEXT REFERENCES psd_layers(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
 
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'psd_layers' AND column_name = 'rotation'
-      ) THEN
-        ALTER TABLE psd_layers ADD COLUMN rotation REAL NOT NULL DEFAULT 0;
-      END IF;
-    END $$
-  `;
-
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'psd_layers' AND column_name = 'font_style'
-      ) THEN
-        ALTER TABLE psd_layers ADD COLUMN font_style TEXT DEFAULT 'normal';
-      END IF;
-    END $$
-  `;
-
-  await sql`
-    DO $$ BEGIN
-      IF NOT EXISTS (
-        SELECT 1 FROM information_schema.columns
-        WHERE table_name = 'psd_layers' AND column_name = 'locked'
-      ) THEN
-        ALTER TABLE psd_layers ADD COLUMN locked BOOLEAN NOT NULL DEFAULT false;
-      END IF;
-    END $$
-  `;
+    CREATE INDEX IF NOT EXISTS idx_psd_layers_template ON psd_layers(template_id);
+    CREATE INDEX IF NOT EXISTS idx_psd_layers_parent_id ON psd_layers(parent_id);
+  `);
 }

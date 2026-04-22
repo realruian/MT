@@ -24,7 +24,7 @@ export interface PsdLayer {
   id: string;
   templateId: string;
   name: string;
-  layerType: "background" | "text" | "image";
+  layerType: "background" | "text" | "image" | "group";
   zIndex: number;
   x: number;
   y: number;
@@ -42,5 +42,11 @@ export interface PsdLayer {
   fontStyle?: string;
   textAlign?: string;
   lineHeight?: number;
+  /** 字间距（px）。DB 不持久化；仅在 editState 中作为 UI 临时覆盖使用 */
+  letterSpacing?: number;
   locked: boolean;
+  /** 父 Group 的 id；顶层图层为 null/undefined。仅支持一层嵌套。 */
+  parentId?: string | null;
+  /** 运行时字段：由前端按 parentId 聚合后附加，DB 不存储 */
+  children?: PsdLayer[];
 }

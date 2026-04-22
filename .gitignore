@@ -47,3 +47,10 @@ next-env.d.ts
 /high.mp4
 /cursorrules
 .env*.local
+
+# local sqlite + blob 存储（本地运行态产物，不入库）
+/data
+
+
+# Cursor 项目元数据
+.cursor/

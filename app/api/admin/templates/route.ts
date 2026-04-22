@@ -7,7 +7,19 @@ export async function GET() {
     const rows = await sql`
       SELECT * FROM templates ORDER BY sort_order ASC, created_at DESC
     `;
-    return Response.json(rows);
+    // SQLite 里 editable_fields 存的是 JSON 字符串，管理后台期望对象
+    const normalized = rows.map((r) => {
+      const ef = (r as Record<string, unknown>).editable_fields;
+      if (typeof ef === "string") {
+        try {
+          return { ...r, editable_fields: JSON.parse(ef) };
+        } catch {
+          return { ...r, editable_fields: { texts: [], colors: [], images: [] } };
+        }
+      }
+      return r;
+    });
+    return Response.json(normalized);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return Response.json({ error: message }, { status: 500 });
@@ -54,7 +66,7 @@ export async function POST(req: NextRequest) {
         psd_file = EXCLUDED.psd_file,
         canvas_width = EXCLUDED.canvas_width,
         canvas_height = EXCLUDED.canvas_height,
-        updated_at = NOW()
+        updated_at = CURRENT_TIMESTAMP
     `;
 
     return Response.json({ ok: true });

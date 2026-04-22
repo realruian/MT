@@ -24,7 +24,7 @@ export interface ParsedTextInfo {
 
 export interface ParsedLayer {
   name: string;
-  type: "text" | "image";
+  type: "text" | "image" | "group";
   zIndex: number;
   x: number;
   y: number;
@@ -35,6 +35,11 @@ export interface ParsedLayer {
   rotation: number;
   imageBuffer?: Buffer;
   text?: ParsedTextInfo;
+  /**
+   * 指向同一 `layers` 数组中父 Group 的下标；顶层图层为 undefined。
+   * upload route 据此回填真实 parent_id。
+   */
+  parentIndex?: number;
 }
 
 export interface PsdParseResult {
@@ -132,6 +137,16 @@ function extractTextInfo(layer: Layer): ParsedTextInfo | undefined {
     }
   }
 
+  // Sanity check: PSD 文件里有时会残留异常大的 leading（字符面板显示"自动"但文件内部
+  // 存了脏值），导致渲染时 div 被撑高、文字视觉下移。若 leading 超过 fontSize 的 2 倍，
+  // 判定为脏数据，丢弃让前端 fallback 到默认行高。
+  if (leading && fontSize && leading > fontSize * 2) {
+    console.warn(
+      `[psd-parser] 文字图层 leading 异常（${leading} > fontSize ${fontSize} × 2），已丢弃`,
+    );
+    leading = undefined;
+  }
+
   return {
     content: td.text,
     fontFamily: style?.font?.name,
@@ -156,6 +171,77 @@ function extractRotationFromMatrix(transform?: number[]): number {
   return Math.abs(degrees) < 0.5 ? 0 : Math.round(degrees * 100) / 100;
 }
 
+/**
+ * 解析单张"叶子"图层（text / image）为 ParsedLayer。
+ * 不处理 Group；Group 在 parsePsdBuffer 中单独记录。
+ * 子层 left/top/right/bottom 在 PSD 中本就是相对整个画布的绝对坐标，无需换算。
+ */
+async function parseLeafLayer(
+  layer: Layer,
+  fallbackName: string,
+): Promise<ParsedLayer | null> {
+  const x = layer.left ?? 0;
+  const y = layer.top ?? 0;
+  const w = (layer.right ?? 0) - x;
+  const h = (layer.bottom ?? 0) - y;
+  const visible = !layer.hidden;
+  const rawOpacity = layer.opacity ?? 1;
+  const opacity = rawOpacity > 1 ? rawOpacity / 255 : rawOpacity;
+  const name = layer.name ?? fallbackName;
+
+  if (layer.text) {
+    const text = extractTextInfo(layer);
+    const rotation = extractRotationFromMatrix(layer.text.transform);
+    let imageBuffer: Buffer | undefined;
+    if (layer.imageData && w > 0 && h > 0) {
+      try {
+        imageBuffer = await pixelDataToPng(layer.imageData.data, layer.imageData.width, layer.imageData.height);
+      } catch { /* text layers may not have valid pixel data */ }
+    }
+    return {
+      name, type: "text", zIndex: 0,
+      x, y, width: w, height: h,
+      visible, opacity, rotation,
+      imageBuffer, text,
+    };
+  }
+
+  if (layer.imageData && w > 0 && h > 0) {
+    const placedTransform = (layer as unknown as { placedLayer?: { transform?: number[] } }).placedLayer?.transform;
+    const rotation = extractRotationFromMatrix(placedTransform);
+    const imageBuffer = await pixelDataToPng(
+      layer.imageData.data,
+      layer.imageData.width,
+      layer.imageData.height,
+    );
+    return {
+      name, type: "image", zIndex: 0,
+      x, y, width: w, height: h,
+      visible, opacity, rotation,
+      imageBuffer,
+    };
+  }
+
+  return null;
+}
+
+/** 根据一组子层计算外接矩形，用作 Group 的 x/y/width/height。 */
+function computeGroupBBox(children: Layer[]): { x: number; y: number; width: number; height: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const c of children) {
+    const cx = c.left ?? 0;
+    const cy = c.top ?? 0;
+    const cx2 = c.right ?? cx;
+    const cy2 = c.bottom ?? cy;
+    if (cx < minX) minX = cx;
+    if (cy < minY) minY = cy;
+    if (cx2 > maxX) maxX = cx2;
+    if (cy2 > maxY) maxY = cy2;
+  }
+  if (!isFinite(minX)) return { x: 0, y: 0, width: 0, height: 0 };
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
 export async function parsePsdBuffer(buffer: ArrayBuffer): Promise<PsdParseResult> {
   const psd = readPsd(buffer, { useImageData: true });
 
@@ -165,48 +251,46 @@ export async function parsePsdBuffer(buffer: ArrayBuffer): Promise<PsdParseResul
   for (let i = 0; i < topLayers.length; i++) {
     const layer = topLayers[i];
     const name = layer.name ?? `Layer ${i}`;
-    const x = layer.left ?? 0;
-    const y = layer.top ?? 0;
-    const w = (layer.right ?? 0) - x;
-    const h = (layer.bottom ?? 0) - y;
-    const visible = !layer.hidden;
-    const rawOpacity = layer.opacity ?? 1;
-    const opacity = rawOpacity > 1 ? rawOpacity / 255 : rawOpacity;
+    const isGroup = Array.isArray(layer.children) && layer.children.length > 0;
 
-    if (layer.text) {
-      const text = extractTextInfo(layer);
-      const rotation = extractRotationFromMatrix(layer.text.transform);
-      let imageBuffer: Buffer | undefined;
-      if (layer.imageData && w > 0 && h > 0) {
-        try {
-          imageBuffer = await pixelDataToPng(layer.imageData.data, layer.imageData.width, layer.imageData.height);
-        } catch { /* text layers may not have valid pixel data */ }
+    if (isGroup) {
+      const children = layer.children!;
+      const bbox = computeGroupBBox(children);
+      const rawOpacity = layer.opacity ?? 1;
+      const opacity = rawOpacity > 1 ? rawOpacity / 255 : rawOpacity;
+
+      const groupIndex = layers.length;
+      layers.push({
+        name,
+        type: "group",
+        zIndex: layers.length,
+        x: bbox.x, y: bbox.y,
+        width: bbox.width, height: bbox.height,
+        visible: !layer.hidden,
+        opacity,
+        rotation: 0,
+      });
+
+      // 只递归一层：遇到嵌套 Group 直接跳过（控制台警告，规范要求扁平化）
+      for (let j = 0; j < children.length; j++) {
+        const child = children[j];
+        if (Array.isArray(child.children) && child.children.length > 0) {
+          console.warn(`[psd-parser] 嵌套 Group "${child.name}" 已跳过；请在 PS 中合并到父 Group。`);
+          continue;
+        }
+        const parsed = await parseLeafLayer(child, `${name} / Layer ${j}`);
+        if (parsed) {
+          parsed.zIndex = layers.length;
+          parsed.parentIndex = groupIndex;
+          layers.push(parsed);
+        }
       }
-      layers.push({
-        name,
-        type: "text",
-        zIndex: i,
-        x, y, width: w, height: h,
-        visible, opacity, rotation,
-        imageBuffer,
-        text,
-      });
-    } else if (layer.imageData && w > 0 && h > 0) {
-      const placedTransform = (layer as unknown as { placedLayer?: { transform?: number[] } }).placedLayer?.transform;
-      const rotation = extractRotationFromMatrix(placedTransform);
-      const imageBuffer = await pixelDataToPng(
-        layer.imageData.data,
-        layer.imageData.width,
-        layer.imageData.height,
-      );
-      layers.push({
-        name,
-        type: "image",
-        zIndex: i,
-        x, y, width: w, height: h,
-        visible, opacity, rotation,
-        imageBuffer,
-      });
+    } else {
+      const parsed = await parseLeafLayer(layer, name);
+      if (parsed) {
+        parsed.zIndex = layers.length;
+        layers.push(parsed);
+      }
     }
   }
 
