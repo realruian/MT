@@ -18,7 +18,7 @@ function truncateName(name: string): string {
 
 export function SlotPanel({ slots, activeSlotId, onSelect, onDelete }: SlotPanelProps) {
   return (
-    <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#eee]">
+    <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#7C889C]/10">
       <div className="px-5 pt-5 pb-3 text-[14px] text-[#11192D]">资源位</div>
       <ul className="flex flex-1 flex-col gap-2 overflow-y-auto px-5 pb-5">
         {slots.map((slot) => (

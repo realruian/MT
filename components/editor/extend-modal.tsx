@@ -61,7 +61,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}
-        <div className="flex items-center justify-between border-b border-[#eee] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#7C889C]/10 px-6 py-4">
           <h2 className="text-base font-medium text-[#11192D]">选择需要新增的渠道尺寸</h2>
           <button
             type="button"
@@ -124,7 +124,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
         </div>
 
         {/* 底部 */}
-        <div className="flex items-center justify-between border-t border-[#eee] px-6 py-3">
+        <div className="flex items-center justify-between border-t border-[#7C889C]/10 px-6 py-3">
           <span className="text-xs text-[#666]">
             当前已选择 {selected.size} 个需要延展的尺寸
           </span>

@@ -28,7 +28,7 @@ export function ExportModal({
         className="flex w-[420px] flex-col rounded-2xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-[#eee] px-6 py-4">
+        <div className="flex items-center justify-between border-b border-[#7C889C]/10 px-6 py-4">
           <h2 className="text-base font-medium text-[#11192D]">选择下载范围</h2>
           <button
             type="button"

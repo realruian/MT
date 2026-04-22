@@ -100,7 +100,7 @@ export function PropertyPanel({
     selectedLayer?.layerType === "background";
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#eee] [&>section]:border-t [&>section]:border-[#eee] [&>section]:px-3 [&>section]:py-5 [&>section:first-child]:border-t-0">
+    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#7C889C]/10 [&>section]:mx-3 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section]:py-5 [&>section:first-child]:border-t-0">
       {/* 状态 1：什么都没选中 → 仅显示画布尺寸 */}
       {!selectedLayer && !selectedGroup && (
         <section>
@@ -630,7 +630,7 @@ function FillColorField({
       />
 
       {/* 竖向分隔线 */}
-      <div className="h-4 w-px bg-[#11192D]/20" />
+      <div className="h-4 w-px bg-[#7C889C]/10" />
 
       {/* 不透明度 % */}
       <input
