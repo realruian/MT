@@ -7,20 +7,22 @@ import { HeroHeader } from "./hero-header";
 import { HomeMain } from "./home-main";
 
 const SCENE_TO_CATEGORY: Record<string, string> = {
+  "full-campaign": "全套活动",
   "hall-banner": "会场头图",
   "hall-blocks": "会场组件",
   "insite-slot": "站内资源位",
   "offsite-slot": "站外资源位",
-  "consumer": "C 端外素材",
+  "edit-material": "素材修改",
+  "image-processing": "图像处理",
+  "batch-processing": "批量处理",
 };
 
 export function HomeShell({ templates }: { templates: Template[] }) {
-  const [activeScene, setActiveScene] = useState<SceneTabId>("all");
+  const [activeScene, setActiveScene] = useState<SceneTabId>("full-campaign");
 
   const filtered = useMemo(() => {
-    if (activeScene === "all") return templates;
     const category = SCENE_TO_CATEGORY[activeScene];
-    if (!category) return templates;
+    if (!category) return [];
     return templates.filter((t) => t.category === category);
   }, [templates, activeScene]);
 

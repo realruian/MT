@@ -1,12 +1,14 @@
 "use client";
 
 export const sceneTabs = [
-  { id: "all", label: "自由模式" },
+  { id: "full-campaign", label: "全套活动" },
   { id: "hall-banner", label: "会场头图" },
   { id: "hall-blocks", label: "会场组件" },
   { id: "insite-slot", label: "站内资源位" },
   { id: "offsite-slot", label: "站外资源位" },
-  { id: "consumer", label: "C 端外素材" },
+  { id: "edit-material", label: "素材修改" },
+  { id: "image-processing", label: "图像处理" },
+  { id: "batch-processing", label: "批量处理" },
 ] as const;
 
 export type SceneTabId = (typeof sceneTabs)[number]["id"];
