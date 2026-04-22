@@ -63,7 +63,7 @@ function SlotItem({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
-        <div className="size-[41px] shrink-0 overflow-hidden rounded-[8px] bg-[#e3e6e9]">
+        <div className="size-[40px] shrink-0 overflow-hidden rounded-[8px] bg-[#e3e6e9]">
           {slot.thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img

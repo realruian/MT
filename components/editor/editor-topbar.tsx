@@ -21,7 +21,7 @@ export function EditorTopbar({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#eee] px-5">
       {/* 面包屑 */}
-      <div className="flex items-center gap-2 text-sm text-[#666]">
+      <div className="flex items-center gap-2 text-[16px] text-[#666]">
         <span>全套延展</span>
         <span className="text-[#aaa]">·</span>
         <span className="text-[#11192D]">{activity || "未命名活动"}</span>
