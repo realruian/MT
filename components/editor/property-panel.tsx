@@ -257,16 +257,20 @@ function FieldBox({
   children,
   trailing,
   fullWidth,
+  iconPrefix,
 }: {
   label?: ReactNode;
   children: ReactNode;
   trailing?: ReactNode;
   fullWidth?: boolean;
+  /** label 是 icon 时，左内边距从 12px 收紧到 8px */
+  iconPrefix?: boolean;
 }) {
   return (
     <div
       className={[
-        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3",
+        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] pr-3",
+        iconPrefix ? "pl-2" : "pl-3",
         fullWidth ? "col-span-2" : "",
       ]
         .filter(Boolean)
@@ -508,8 +512,9 @@ function TextFields({
         />
       </FieldBox>
 
-      {/* 行高：前缀 icon（pl-3 = 12px），右侧上下调整 */}
+      {/* 行高：前缀 icon（pl-2 = 8px），右侧上下调整 */}
       <FieldBox
+        iconPrefix
         label={<LineHeightIcon />}
         trailing={
           <FieldSpinner
@@ -534,8 +539,9 @@ function TextFields({
         />
       </FieldBox>
 
-      {/* 字间距：前缀 icon（pl-3 = 12px），右侧上下调整 */}
+      {/* 字间距：前缀 icon（pl-2 = 8px），右侧上下调整 */}
       <FieldBox
+        iconPrefix
         label={<LetterSpacingIcon />}
         trailing={
           <FieldSpinner
@@ -596,7 +602,7 @@ function FillColorField({
   const percent = typeof opacity === "number" ? Math.round(opacity * 100) : 100;
 
   return (
-    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] px-3">
+    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] pl-2 pr-3">
       {/* 色块：叠一个透明 input[type=color] 覆盖，实现点击弹原生颜色选择器 */}
       <label className="relative flex size-4 shrink-0 cursor-pointer overflow-hidden rounded border border-white/80">
         <span
