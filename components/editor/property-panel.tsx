@@ -273,7 +273,7 @@ function FieldBox({
       )}
       {children}
       {trailing != null && (
-        <span className="pointer-events-none flex shrink-0 items-center text-[#7c889c]">
+        <span className="flex shrink-0 items-center text-[#7c889c]">
           {trailing}
         </span>
       )}
@@ -294,9 +294,57 @@ function FieldValue({ children }: { children: ReactNode }) {
 const fieldInputCls =
   "min-w-0 flex-1 bg-transparent text-[14px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
-/** 胶囊内 select（appearance-none 去掉浏览器原生箭头 + 透明底） */
+/** 胶囊内 select（appearance-none 去掉浏览器原生箭头 + 透明底 + pointer-events-none：
+ *  只允许点击右侧 chevron 按钮触发下拉，禁用在文字上直接点开，保留键盘 tab/space 访问） */
 const fieldSelectCls =
-  "min-w-0 flex-1 cursor-pointer appearance-none bg-transparent text-[14px] text-[#11192D] outline-none";
+  "min-w-0 flex-1 pointer-events-none appearance-none bg-transparent text-[14px] text-[#11192D] outline-none";
+
+/** 胶囊内下拉选择字段：chevron 是唯一的鼠标触发点。
+ *  用 showPicker() 打开原生下拉，Chrome 99+/Firefox 106+/Safari 17.4+ 支持。 */
+function SelectFieldBox({
+  value,
+  onChange,
+  options,
+  fullWidth,
+  label,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  fullWidth?: boolean;
+  label?: ReactNode;
+}) {
+  const ref = useRef<HTMLSelectElement>(null);
+  return (
+    <FieldBox
+      fullWidth={fullWidth}
+      label={label}
+      trailing={
+        <button
+          type="button"
+          aria-label="打开选项"
+          onClick={() => ref.current?.showPicker?.()}
+          className="flex shrink-0 items-center text-[#7c889c] transition-colors hover:text-[#11192D]"
+        >
+          <ChevronDown className="size-4" />
+        </button>
+      }
+    >
+      <select
+        ref={ref}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className={fieldSelectCls}
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </FieldBox>
+  );
+}
 
 /** 行高 icon（上下两条横线 + 中间 A） */
 function LineHeightIcon({ className = "size-4" }: { className?: string }) {
@@ -394,40 +442,31 @@ function TextFields({
   return (
     <div className="grid grid-cols-2 gap-2">
       {/* 字体：无前缀 label，仅值 + 下拉箭头，占满整行 */}
-      <FieldBox fullWidth trailing={<FieldChevron />}>
-        <select
-          value={fontFamily}
-          onChange={(e) => setStr(layer, "fontFamily", e.target.value)}
-          className={fieldSelectCls}
-        >
-          {familyOptions.map((f) => (
-            <option key={f.family} value={f.family}>
-              {f.displayName}
-            </option>
-          ))}
-        </select>
-      </FieldBox>
+      <SelectFieldBox
+        fullWidth
+        value={fontFamily}
+        onChange={(v) => setStr(layer, "fontFamily", v)}
+        options={familyOptions.map((f) => ({
+          value: f.family,
+          label: f.displayName,
+        }))}
+      />
 
       {/* 字重：无 label，带下拉箭头 */}
-      <FieldBox trailing={<FieldChevron />}>
-        <select
-          value={fontWeight}
-          onChange={(e) => setStr(layer, "fontWeight", e.target.value)}
-          className={fieldSelectCls}
-        >
-          {weightOptions.map((v) => (
-            <option key={v.weight} value={v.weight}>
-              {v.label}
-            </option>
-          ))}
-        </select>
-      </FieldBox>
+      <SelectFieldBox
+        value={fontWeight}
+        onChange={(v) => setStr(layer, "fontWeight", v)}
+        options={weightOptions.map((v) => ({
+          value: v.weight,
+          label: v.label,
+        }))}
+      />
 
       {/* 字号：无 label，带下拉箭头（装饰性） */}
       <FieldBox trailing={<FieldChevron />}>
         <input
           type="number"
-          value={fontSize ?? ""}
+          value={fontSize ?? 12}
           onChange={(e) => setNum(layer, "fontSize", e.target.value)}
           className={fieldInputCls}
         />
