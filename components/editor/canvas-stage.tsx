@@ -310,7 +310,7 @@ export function CanvasStage({
     <div
       ref={containerRef}
       onClick={() => onSelect(null)}
-      className="relative flex-1 min-w-0 min-h-0 overflow-hidden bg-[#fafafa]"
+      className="relative flex-1 min-w-0 min-h-0 overflow-hidden bg-white/50"
     >
       {loading ? (
         <div
