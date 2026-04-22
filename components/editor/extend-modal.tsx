@@ -112,7 +112,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                               />
                               <span
                                 aria-hidden
-                                className="absolute inset-0 rounded-[4px] bg-[#7C889C] transition-colors peer-checked:bg-[#11192D]"
+                                className="absolute inset-0 rounded-[4px] bg-[#7C889C]/50 transition-colors peer-checked:bg-[#11192D]"
                               />
                               <svg
                                 aria-hidden
@@ -122,7 +122,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                                 strokeWidth={2.5}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className="pointer-events-none relative size-3 opacity-0 peer-checked:opacity-100"
+                                className="pointer-events-none relative size-3"
                               >
                                 <path d="M2 6.5 L5 9.5 L10 3" />
                               </svg>
