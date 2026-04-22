@@ -137,7 +137,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                   <button
                     type="button"
                     onClick={() => toggleAllInGroup(preset)}
-                    className="shrink-0 text-[14px] text-[#7c889c] transition-colors hover:text-[#11192D]"
+                    className="shrink-0 text-[14px] font-normal text-[#7c889c] transition-colors hover:text-[#11192D]"
                   >
                     {allSelected ? "取消全选" : "全选"}
                   </button>
