@@ -73,7 +73,7 @@ function SlotItem({
             />
           ) : null}
         </div>
-        <div className="flex min-w-0 flex-1 flex-col gap-1 leading-tight">
+        <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
           <p className="truncate text-[14px] text-[#4F607A]">{displayName}</p>
           <p className="truncate text-[10px] text-[#999]">
             {slot.width} × {slot.height}
