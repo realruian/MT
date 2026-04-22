@@ -2,15 +2,18 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Upload, RefreshCw, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2 } from "lucide-react";
+import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2 } from "lucide-react";
 import { PsdManager } from "@/components/admin/psd-manager";
 
 const CATEGORIES = [
+  "全套活动",
   "会场头图",
   "会场组件",
   "站内资源位",
   "站外资源位",
-  "C 端外素材",
+  "素材修改",
+  "图像处理",
+  "批量处理",
 ];
 
 interface TemplateField {

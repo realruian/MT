@@ -10,7 +10,6 @@ import {
   Type,
   ImageIcon,
   LayoutTemplate,
-  Pencil,
   X,
   Lock,
   Unlock,
@@ -18,11 +17,14 @@ import {
 import type { PsdLayer } from "@/types/template";
 
 const CATEGORIES = [
+  "全套活动",
   "会场头图",
   "会场组件",
   "站内资源位",
   "站外资源位",
-  "C 端外素材",
+  "素材修改",
+  "图像处理",
+  "批量处理",
 ];
 
 const LAYER_TYPE_LABELS: Record<string, { label: string; color: string }> = {
@@ -121,8 +123,8 @@ export function PsdManager() {
       setMessage("只支持 .psd 文件");
       return;
     }
-    if (file.size > 20 * 1024 * 1024) {
-      setMessage(`文件过大（${Math.round(file.size / 1024 / 1024)}MB），最大 20MB`);
+    if (file.size > 200 * 1024 * 1024) {
+      setMessage(`文件过大（${Math.round(file.size / 1024 / 1024)}MB），最大 200MB`);
       return;
     }
 
@@ -387,7 +389,7 @@ export function PsdManager() {
           <label className="flex cursor-pointer flex-col items-center gap-3">
             <Upload className="size-8 text-gray-400" />
             <p className="text-sm text-gray-600">点击选择 PSD 文件上传</p>
-            <p className="text-xs text-gray-400">支持 .psd 格式，最大 20MB</p>
+            <p className="text-xs text-gray-400">支持 .psd 格式，最大 200MB</p>
             <input
               type="file"
               accept=".psd"
