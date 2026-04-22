@@ -357,32 +357,32 @@ function TextFields({
         </select>
       </PropertyField>
 
-      <PropertyField label="字号">
+      <FieldBox label="字号">
         <input
           type="number"
           value={fontSize ?? ""}
           onChange={(e) => setNum(layer, "fontSize", e.target.value)}
-          className={inputCls}
+          className={fieldInputCls}
         />
-      </PropertyField>
+      </FieldBox>
 
-      <PropertyField label="行高">
+      <FieldBox label="行高">
         <input
           type="number"
           value={lineHeight ?? ""}
           onChange={(e) => setNum(layer, "lineHeight", e.target.value)}
-          className={inputCls}
+          className={fieldInputCls}
         />
-      </PropertyField>
+      </FieldBox>
 
-      <PropertyField label="字间距">
+      <FieldBox label="字间距">
         <input
           type="number"
           value={letterSpacing ?? ""}
           onChange={(e) => setNum(layer, "letterSpacing", e.target.value)}
-          className={inputCls}
+          className={fieldInputCls}
         />
-      </PropertyField>
+      </FieldBox>
 
       <PropertyField label="对齐" fullWidth>
         <AlignButtons
