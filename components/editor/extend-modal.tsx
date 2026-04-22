@@ -122,7 +122,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                                 strokeWidth={2.5}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
-                                className="pointer-events-none relative size-3"
+                                className="pointer-events-none relative size-2.5"
                               >
                                 <path d="M2 6.5 L5 9.5 L10 3" />
                               </svg>
