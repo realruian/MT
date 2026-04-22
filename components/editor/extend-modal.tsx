@@ -62,7 +62,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
       >
         {/* 标题栏 —— 无底部分割线 */}
         <div className="flex items-center justify-between px-6 pb-3 pt-6">
-          <h2 className="text-[16px] font-medium text-[#11192D]">
+          <h2 className="text-[20px] font-medium text-[#11192D]">
             选择需要新增的渠道尺寸
           </h2>
           <button
