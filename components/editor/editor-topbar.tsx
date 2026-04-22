@@ -32,7 +32,7 @@ export function EditorTopbar({
         <button
           type="button"
           onClick={onExtend}
-          className="h-8 rounded-lg border border-[#e5e5e5] bg-white px-4 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#f5f5f5]"
+          className="h-8 rounded-lg bg-[#E9ECF1] px-4 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
         >
           一键拓展
         </button>
