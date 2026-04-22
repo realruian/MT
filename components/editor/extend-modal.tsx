@@ -149,14 +149,14 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
 
         {/* 底部 —— 无顶部分割线 */}
         <div className="flex items-center justify-between px-6 pb-6 pt-3">
-          <span className="text-[14px] text-[#7c889c]">
+          <span className="text-[14px] font-light text-[#7c889c]">
             当前已选择 {selected.size} 个需要延展的尺寸
           </span>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="h-8 rounded-[8px] bg-[#E9ECF1] px-3 text-[14px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
+              className="h-8 rounded-[8px] bg-[#E9ECF1] px-3 text-[14px] font-medium text-[#7C889C] transition-colors hover:bg-[#dde1e8]"
             >
               取消
             </button>
