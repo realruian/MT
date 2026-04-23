@@ -54,22 +54,30 @@ export function CanvasStage({
       ? (editState[VENUE_CANVAS_ID]?.fontColor ?? slot.bgColor ?? "#FFFFFF")
       : (slot.bgColor ?? "#FFFFFF");
 
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
 
-  // 自适应缩放：容器上下左右各留 80px，取能容纳画布的最大比例（上限 1）
+  // 按宽度适配缩放：只用 viewport 宽度算 scale，高度不参与（高度超出时垂直滚动）。
+  // MAX_SCALE = 1 防止小画布被放大模糊；FIT_PADDING 两侧各留 40px 呼吸空间。
+  const FIT_PADDING = 40;
+  const MAX_SCALE = 1.0;
+
   useEffect(() => {
-    const container = containerRef.current;
+    const container = scrollContainerRef.current;
     if (!container || !cw) return;
     const observer = new ResizeObserver(([entry]) => {
-      const availW = entry.contentRect.width - 80;
-      const availH = entry.contentRect.height - 80;
-      const s = Math.min(availW / cw, availH / ch, 1);
+      const availW = entry.contentRect.width - FIT_PADDING * 2;
+      const s = Math.min(availW / cw, MAX_SCALE);
       setScale(Math.max(0.1, s));
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [cw, ch]);
+  }, [cw]);
+
+  // 切换 slot 时滚动回顶部，不保留上一个 slot 的滚动位置
+  useEffect(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [slot.id]);
 
   // 读取图层字段的"有效值"：优先 editState 覆盖，否则回落到 DB 原值
   function getVal<K extends keyof PsdLayer>(layer: PsdLayer, key: K): PsdLayer[K] {
@@ -285,6 +293,16 @@ export function CanvasStage({
           dropIndex,
           dropIndicatorY,
         });
+
+        // 拖拽边缘自动滚动：cursor 距 viewport 顶/底 < 80px 时触发
+        const scrollEl = scrollContainerRef.current;
+        if (scrollEl) {
+          const rect = scrollEl.getBoundingClientRect();
+          const distFromTop = e.clientY - rect.top;
+          const distFromBottom = rect.bottom - e.clientY;
+          if (distFromTop < 80) scrollEl.scrollBy({ top: -10 });
+          else if (distFromBottom < 80) scrollEl.scrollBy({ top: 10 });
+        }
         return;
       }
       if (dragging.mode === "element") {
@@ -569,319 +587,316 @@ export function CanvasStage({
   };
 
   return (
-    <div
-      ref={containerRef}
-      onClick={() => onSelect(null)}
-      className="relative flex-1 min-w-0 min-h-0 overflow-hidden"
-    >
-      {loading ? (
-        <div
-          className="flex flex-col items-center gap-3 text-[#999]"
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-          }}
-        >
-          <Loader2 className="size-6 animate-spin" />
-          <span className="text-xs">尺寸延展中，请稍后...</span>
+    <div className="relative flex-1 min-w-0 min-h-0">
+      {/* Loading overlay — absolute，覆盖滚动容器 */}
+      {loading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center">
+          <div className="flex flex-col items-center gap-3 text-[#999]">
+            <Loader2 className="size-6 animate-spin" />
+            <span className="text-xs">尺寸延展中，请稍后...</span>
+          </div>
         </div>
-      ) : (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "50%",
-            transform: "translate(-50%, -50%)",
-            width: cw * scale,
-            height: ch * scale,
-            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-            background: effBgColor,
-            // 防止编辑态 textarea 横向撑出画布时把外层容器推偏；
-            // overflow:clip + contain:strict 比 overflow:hidden 更硬，能阻断子元素对父布局尺寸的反向影响
-            overflow: "clip",
-            contain: "strict",
-          }}
-        >
+      )}
+
+      {/* 滚动容器：高度超出时垂直滚动，隐藏滚动条 */}
+      <div
+        ref={scrollContainerRef}
+        onClick={() => onSelect(null)}
+        className="absolute inset-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+      >
+        {/* Flex 水平居中 + 上下留白；min-h-full 保证短内容也能居中 */}
+        <div className="flex justify-center py-10 min-h-full">
+          {/* 画布块：不再绝对定位，由 flexbox 居中 */}
           <div
+            onClick={(e) => e.stopPropagation()}
             style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
-              width: cw,
-              height: ch,
-              transform: `scale(${scale})`,
-              transformOrigin: "top left",
-              overflow: "hidden",
+              position: "relative",
+              width: cw * scale,
+              height: ch * scale,
+              flexShrink: 0,
+              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
               background: effBgColor,
+              overflow: "clip",
+              contain: "strict",
             }}
           >
-            {sortedLayers.map((layer) => {
-              if (layer.layerType === "group") return null;
-              if (layer.parentId && groupVisibility.get(layer.parentId) === false) return null;
-              const visible = layer.visible === true || String(layer.visible) === "true";
-              if (!visible) return null;
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: cw,
+                height: ch,
+                transform: `scale(${scale})`,
+                transformOrigin: "top left",
+                overflow: "hidden",
+                background: effBgColor,
+              }}
+            >
+              {sortedLayers.map((layer) => {
+                if (layer.layerType === "group") return null;
+                if (layer.parentId && groupVisibility.get(layer.parentId) === false) return null;
+                const visible = layer.visible === true || String(layer.visible) === "true";
+                if (!visible) return null;
 
-              const x = getVal(layer, "x");
-              // venue block 换位拖拽：被拖 block 的 layer 渲染时叠加 transient dy
-              // 并把 opacity 打 0.7 折——属于 transient 视觉态，不写 editState
-              const isBlockBeingDragged =
-                blockDrag != null &&
-                blockDrag.blockKey.kind === "instance" &&
-                layer.instanceId === blockDrag.blockKey.id
-                  ? true
-                  : blockDrag != null &&
-                    blockDrag.blockKey.kind === "originalGroup" &&
-                    (layer.parentId === blockDrag.blockKey.id ||
-                      layer.id === blockDrag.blockKey.id);
-              const baseY = getVal(layer, "y") as number;
-              const y = isBlockBeingDragged
-                ? baseY + blockDrag!.dy
-                : baseY;
-              const w = getVal(layer, "width");
-              const h = getVal(layer, "height");
-              const baseOpacity = getVal(layer, "opacity") as number;
-              const opacity = isBlockBeingDragged
-                ? baseOpacity * 0.7
-                : baseOpacity;
-              const rot = getVal(layer, "rotation") ?? 0;
+                const x = getVal(layer, "x");
+                // venue block 换位拖拽：被拖 block 的 layer 渲染时叠加 transient dy
+                // 并把 opacity 打 0.7 折——属于 transient 视觉态，不写 editState
+                const isBlockBeingDragged =
+                  blockDrag != null &&
+                  blockDrag.blockKey.kind === "instance" &&
+                  layer.instanceId === blockDrag.blockKey.id
+                    ? true
+                    : blockDrag != null &&
+                      blockDrag.blockKey.kind === "originalGroup" &&
+                      (layer.parentId === blockDrag.blockKey.id ||
+                        layer.id === blockDrag.blockKey.id);
+                const baseY = getVal(layer, "y") as number;
+                const y = isBlockBeingDragged
+                  ? baseY + blockDrag!.dy
+                  : baseY;
+                const w = getVal(layer, "width");
+                const h = getVal(layer, "height");
+                const baseOpacity = getVal(layer, "opacity") as number;
+                const opacity = isBlockBeingDragged
+                  ? baseOpacity * 0.7
+                  : baseOpacity;
+                const rot = getVal(layer, "rotation") ?? 0;
 
-              const handleLeafClick = layer.parentId
-                ? (e: React.MouseEvent) => {
-                    e.stopPropagation();
-                    if (selection?.moduleId === layer.parentId) {
-                      // 模块已选中 → 二级选中到元素
-                      onSelect({ moduleId: layer.parentId!, layerId: layer.id });
-                    } else {
-                      // 未选或选中其他模块 → 切到本模块
-                      onSelect({ moduleId: layer.parentId! });
+                const handleLeafClick = layer.parentId
+                  ? (e: React.MouseEvent) => {
+                      e.stopPropagation();
+                      if (selection?.moduleId === layer.parentId) {
+                        // 模块已选中 → 二级选中到元素
+                        onSelect({ moduleId: layer.parentId!, layerId: layer.id });
+                      } else {
+                        // 未选或选中其他模块 → 切到本模块
+                        onSelect({ moduleId: layer.parentId! });
+                      }
                     }
-                  }
-                : (e: React.MouseEvent) => {
-                    // 顶层叶子 layer（无 parentId / 扁平 PSD）：直接二级选中
-                    e.stopPropagation();
-                    onSelect({ layerId: layer.id });
+                  : (e: React.MouseEvent) => {
+                      // 顶层叶子 layer（无 parentId / 扁平 PSD）：直接二级选中
+                      e.stopPropagation();
+                      onSelect({ layerId: layer.id });
+                    };
+
+                if (layer.layerType === "text") {
+                  const text = getVal(layer, "textContent") ?? "";
+                  const isMultiLine = text.includes("\n");
+                  const fs = getVal(layer, "fontSize") ?? 16;
+                  const lh = getVal(layer, "lineHeight");
+                  // 防御异常 lineHeight：脏数据里 leading 可能远大于 fontSize，导致文字视觉下移。
+                  // 超过 fontSize × 2 时视为异常，退回默认行高。
+                  const safeLh =
+                    lh && lh > fs && lh <= fs * 2 ? `${lh}px` : 1.3;
+                  const ls = getVal(layer, "letterSpacing");
+                  const isEditing = editingId === layer.id;
+
+                  // 共享定位 + 文字样式：保证 textarea 编辑态和 div 展示态位置 / 字体 / 行高完全一致
+                  const baseStyle: React.CSSProperties = {
+                    position: "absolute",
+                    left: x,
+                    top: y,
+                    width: isMultiLine || isEditing ? w : undefined,
+                    minWidth: w,
+                    opacity,
+                    fontSize: fs,
+                    fontFamily: `"${getVal(layer, "fontFamily") ?? "sans-serif"}", sans-serif`,
+                    color: getVal(layer, "fontColor") ?? "#000",
+                    fontWeight: getVal(layer, "fontWeight") ?? "normal",
+                    fontStyle: (getVal(layer, "fontStyle") as React.CSSProperties["fontStyle"]) ?? "normal",
+                    lineHeight: safeLh,
+                    letterSpacing: typeof ls === "number" ? `${ls}px` : undefined,
+                    textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
+                    whiteSpace: isMultiLine || isEditing ? "pre-wrap" : "nowrap",
+                    zIndex: layer.zIndex,
+                    transform: rot ? `rotate(${rot}deg)` : undefined,
+                    transformOrigin: "left top",
+                    // 限制横向最大宽度不超过画布剩余空间，元素自身 overflow:hidden 兜底裁剪
+                    maxWidth: Math.max(0, cw - (x as number)),
+                    overflow: "hidden",
                   };
 
-              if (layer.layerType === "text") {
-                const text = getVal(layer, "textContent") ?? "";
-                const isMultiLine = text.includes("\n");
-                const fs = getVal(layer, "fontSize") ?? 16;
-                const lh = getVal(layer, "lineHeight");
-                // 防御异常 lineHeight：脏数据里 leading 可能远大于 fontSize，导致文字视觉下移。
-                // 超过 fontSize × 2 时视为异常，退回默认行高。
-                const safeLh =
-                  lh && lh > fs && lh <= fs * 2 ? `${lh}px` : 1.3;
-                const ls = getVal(layer, "letterSpacing");
-                const isEditing = editingId === layer.id;
+                  // 编辑态：只渲染 textarea 一个节点，原 div 不再渲染（避免重影）
+                  if (isEditing) {
+                    return (
+                      <InlineTextEditor
+                        key={layer.id}
+                        baseStyle={baseStyle}
+                        value={draftText}
+                        onChange={setDraftText}
+                        onCommit={commitEdit}
+                        onCancel={cancelEdit}
+                      />
+                    );
+                  }
 
-                // 共享定位 + 文字样式：保证 textarea 编辑态和 div 展示态位置 / 字体 / 行高完全一致
-                const baseStyle: React.CSSProperties = {
-                  position: "absolute",
-                  left: x,
-                  top: y,
-                  width: isMultiLine || isEditing ? w : undefined,
-                  minWidth: w,
-                  opacity,
-                  fontSize: fs,
-                  fontFamily: `"${getVal(layer, "fontFamily") ?? "sans-serif"}", sans-serif`,
-                  color: getVal(layer, "fontColor") ?? "#000",
-                  fontWeight: getVal(layer, "fontWeight") ?? "normal",
-                  fontStyle: (getVal(layer, "fontStyle") as React.CSSProperties["fontStyle"]) ?? "normal",
-                  lineHeight: safeLh,
-                  letterSpacing: typeof ls === "number" ? `${ls}px` : undefined,
-                  textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
-                  whiteSpace: isMultiLine || isEditing ? "pre-wrap" : "nowrap",
-                  zIndex: layer.zIndex,
-                  transform: rot ? `rotate(${rot}deg)` : undefined,
-                  transformOrigin: "left top",
-                  // 限制横向最大宽度不超过画布剩余空间，元素自身 overflow:hidden 兜底裁剪
-                  maxWidth: Math.max(0, cw - (x as number)),
-                  overflow: "hidden",
-                };
-
-                // 编辑态：只渲染 textarea 一个节点，原 div 不再渲染（避免重影）
-                if (isEditing) {
                   return (
-                    <InlineTextEditor
+                    <div
                       key={layer.id}
-                      baseStyle={baseStyle}
-                      value={draftText}
-                      onChange={setDraftText}
-                      onCommit={commitEdit}
-                      onCancel={cancelEdit}
-                    />
+                      onClick={handleLeafClick}
+                      onMouseDown={(e) => handleMouseDown(e, layer)}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        // 顶层孤立文本不支持双击编辑（与现有选择规则一致）
+                        if (!layer.parentId) return;
+                        initialTextRef.current = text;
+                        draftTextRef.current = text;
+                        setDraftText(text);
+                        setEditingId(layer.id);
+                        onSelect({ moduleId: layer.parentId, layerId: layer.id });
+                      }}
+                      style={{
+                        ...baseStyle,
+                        userSelect: "none",
+                        cursor:
+                          selection?.layerId === layer.id ||
+                          (!!layer.parentId &&
+                            selection?.moduleId === layer.parentId &&
+                            !selection?.layerId)
+                            ? "move"
+                            : layer.parentId
+                              ? "pointer"
+                              : "default",
+                      }}
+                    >
+                      {text}
+                    </div>
                   );
                 }
 
-                return (
-                  <div
-                    key={layer.id}
-                    onClick={handleLeafClick}
-                    onMouseDown={(e) => handleMouseDown(e, layer)}
-                    onDoubleClick={(e) => {
-                      e.stopPropagation();
-                      // 顶层孤立文本不支持双击编辑（与现有选择规则一致）
-                      if (!layer.parentId) return;
-                      initialTextRef.current = text;
-                      draftTextRef.current = text;
-                      setDraftText(text);
-                      setEditingId(layer.id);
-                      onSelect({ moduleId: layer.parentId, layerId: layer.id });
-                    }}
-                    style={{
-                      ...baseStyle,
-                      userSelect: "none",
-                      cursor:
-                        selection?.layerId === layer.id ||
-                        (!!layer.parentId &&
-                          selection?.moduleId === layer.parentId &&
-                          !selection?.layerId)
-                          ? "move"
-                          : layer.parentId
-                            ? "pointer"
-                            : "default",
-                    }}
-                  >
-                    {text}
-                  </div>
-                );
-              }
+                if (
+                  (layer.layerType === "image" || layer.layerType === "background") &&
+                  getVal(layer, "imageUrl")
+                ) {
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={layer.id}
+                      src={getVal(layer, "imageUrl")!}
+                      alt={layer.name}
+                      draggable={false}
+                      onClick={handleLeafClick}
+                      onMouseDown={(e) => handleMouseDown(e, layer)}
+                      style={{
+                        position: "absolute",
+                        left: x,
+                        top: y,
+                        width: w,
+                        height: h,
+                        opacity,
+                        objectFit: "fill",
+                        zIndex: layer.zIndex,
+                        transform: rot ? `rotate(${rot}deg)` : undefined,
+                        transformOrigin: "left top",
+                        userSelect: "none",
+                        cursor:
+                          selection?.layerId === layer.id ||
+                          (!!layer.parentId &&
+                            selection?.moduleId === layer.parentId &&
+                            !selection?.layerId)
+                            ? "move"
+                            : layer.parentId
+                              ? "pointer"
+                              : "default",
+                      }}
+                    />
+                  );
+                }
+                return null;
+              })}
 
-              if (
-                (layer.layerType === "image" || layer.layerType === "background") &&
-                getVal(layer, "imageUrl")
-              ) {
-                return (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    key={layer.id}
-                    src={getVal(layer, "imageUrl")!}
-                    alt={layer.name}
-                    draggable={false}
-                    onClick={handleLeafClick}
-                    onMouseDown={(e) => handleMouseDown(e, layer)}
-                    style={{
-                      position: "absolute",
-                      left: x,
-                      top: y,
-                      width: w,
-                      height: h,
-                      opacity,
-                      objectFit: "fill",
-                      zIndex: layer.zIndex,
-                      transform: rot ? `rotate(${rot}deg)` : undefined,
-                      transformOrigin: "left top",
-                      userSelect: "none",
-                      cursor:
-                        selection?.layerId === layer.id ||
-                        (!!layer.parentId &&
-                          selection?.moduleId === layer.parentId &&
-                          !selection?.layerId)
-                          ? "move"
-                          : layer.parentId
-                            ? "pointer"
-                            : "default",
-                    }}
-                  />
-                );
-              }
-              return null;
-            })}
+              {/* venue block 拖拽换位：drop indicator 2px 蓝色横线，贴 venue
+                  组件水平区间（24 ~ cw-24），提示松手后插入位置 */}
+              {blockDrag && (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 24,
+                    right: 24,
+                    top: blockDrag.dropIndicatorY - 1,
+                    height: 2,
+                    background: "#3B82F6",
+                    borderRadius: 1,
+                    pointerEvents: "none",
+                    zIndex: 9995,
+                  }}
+                />
+              )}
 
-            {/* venue block 拖拽换位：drop indicator 2px 蓝色横线，贴 venue
-                组件水平区间（24 ~ cw-24），提示松手后插入位置 */}
-            {blockDrag && (
+              {/* 吸附参考线（和图层同一坐标空间，随 scale 一起缩放） */}
+              {dragging &&
+                snapGuides.map((g, i) =>
+                  g.orient === "v" ? (
+                    <div
+                      key={`v-${i}-${g.pos}`}
+                      style={{
+                        position: "absolute",
+                        left: g.pos - 0.5,
+                        top: 0,
+                        width: 1,
+                        height: ch,
+                        background: "#ff2d92",
+                        pointerEvents: "none",
+                        zIndex: 9996,
+                      }}
+                    />
+                  ) : (
+                    <div
+                      key={`h-${i}-${g.pos}`}
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: g.pos - 0.5,
+                        width: cw,
+                        height: 1,
+                        background: "#ff2d92",
+                        pointerEvents: "none",
+                        zIndex: 9996,
+                      }}
+                    />
+                  ),
+                )}
+            </div>
+
+            {/* Group 选中：蓝色描边 bbox（z=9997） */}
+            {selectedGroup && (
               <div
                 style={{
                   position: "absolute",
-                  left: 24,
-                  right: 24,
-                  top: blockDrag.dropIndicatorY - 1,
-                  height: 2,
-                  background: "#3B82F6",
-                  borderRadius: 1,
+                  left: (getVal(selectedGroup, "x") as number) * scale - 2,
+                  top: (getVal(selectedGroup, "y") as number) * scale - 2,
+                  width: (getVal(selectedGroup, "width") as number) * scale + 4,
+                  height: (getVal(selectedGroup, "height") as number) * scale + 4,
+                  border: "2px solid #3b82f6",
+                  borderRadius: 4,
                   pointerEvents: "none",
-                  zIndex: 9995,
+                  zIndex: 9997,
                 }}
               />
             )}
 
-            {/* 吸附参考线（和图层同一坐标空间，随 scale 一起缩放） */}
-            {dragging &&
-              snapGuides.map((g, i) =>
-                g.orient === "v" ? (
-                  <div
-                    key={`v-${i}-${g.pos}`}
-                    style={{
-                      position: "absolute",
-                      left: g.pos - 0.5,
-                      top: 0,
-                      width: 1,
-                      height: ch,
-                      background: "#ff2d92",
-                      pointerEvents: "none",
-                      zIndex: 9996,
-                    }}
-                  />
-                ) : (
-                  <div
-                    key={`h-${i}-${g.pos}`}
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: g.pos - 0.5,
-                      width: cw,
-                      height: 1,
-                      background: "#ff2d92",
-                      pointerEvents: "none",
-                      zIndex: 9996,
-                    }}
-                  />
-                ),
-              )}
+            {/* 元素选中：紫色描边（z=9998，比 Group 蓝框高） */}
+            {selectedLayer && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: (getVal(selectedLayer, "x") as number) * scale - 2,
+                  top: (getVal(selectedLayer, "y") as number) * scale - 2,
+                  width: (getVal(selectedLayer, "width") as number) * scale + 4,
+                  height: (getVal(selectedLayer, "height") as number) * scale + 4,
+                  border: "2px solid #8b5cf6",
+                  borderRadius: 4,
+                  pointerEvents: "none",
+                  zIndex: 9998,
+                }}
+              />
+            )}
           </div>
-
-          {/* Group 选中：蓝色描边 bbox（z=9997） */}
-          {selectedGroup && (
-            <div
-              style={{
-                position: "absolute",
-                left: (getVal(selectedGroup, "x") as number) * scale - 2,
-                top: (getVal(selectedGroup, "y") as number) * scale - 2,
-                width: (getVal(selectedGroup, "width") as number) * scale + 4,
-                height: (getVal(selectedGroup, "height") as number) * scale + 4,
-                border: "2px solid #3b82f6",
-                borderRadius: 4,
-                pointerEvents: "none",
-                zIndex: 9997,
-              }}
-            />
-          )}
-
-          {/* 元素选中：紫色描边（z=9998，比 Group 蓝框高） */}
-          {selectedLayer && (
-            <div
-              style={{
-                position: "absolute",
-                left: (getVal(selectedLayer, "x") as number) * scale - 2,
-                top: (getVal(selectedLayer, "y") as number) * scale - 2,
-                width: (getVal(selectedLayer, "width") as number) * scale + 4,
-                height: (getVal(selectedLayer, "height") as number) * scale + 4,
-                border: "2px solid #8b5cf6",
-                borderRadius: 4,
-                pointerEvents: "none",
-                zIndex: 9998,
-              }}
-            />
-          )}
-
         </div>
-      )}
+      </div>
 
-      {/* 画布底部浅色状态条：尺寸 + 缩放比例 */}
+      {/* 尺寸 + 缩放比例浮窗：absolute 吸附在 viewport 底部，不随画布滚动 */}
       {!loading && (
         <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-[11px] text-[#999] shadow-sm backdrop-blur">
           {cw} × {ch} · {Math.round(scale * 100)}%
