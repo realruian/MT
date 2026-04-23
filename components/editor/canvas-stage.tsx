@@ -938,7 +938,7 @@ export function CanvasStage({
       {/* 撤销/重做 + 尺寸信息：合并进同一个圆角胶囊，顶部居中固定 */}
       {!loading && (
         <div className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 z-40">
-          <div className="pointer-events-auto flex items-center gap-0 rounded-full border border-[#7C889C]/10 bg-white/90 px-1 py-1 backdrop-blur" style={{ boxShadow: "0 0 10px rgba(0,0,0,0.05)" }}>
+          <div className="pointer-events-auto flex items-center gap-0 rounded-full border border-[#7C889C]/10 bg-white px-1 py-1" style={{ boxShadow: "0 0 10px rgba(0,0,0,0.05)" }}>
             {/* 撤销 */}
             <button
               type="button"
