@@ -24,6 +24,18 @@ import { reflowVenueBlocks } from "./venue-reflow";
 export type SlotId = string;
 
 /**
+ * undo/redo 历史快照（D6）：同时记录 editState 和 layers。
+ * - editState：属性面板所有编辑覆盖（文字/字体/颜色/可见性…）
+ * - layers：venue 画布图层数组（含 originalGroup 换位顺序 + 插入 instance）
+ * 非 venue slot 的 layers 字段对 undo 无意义但无害（restore 时 setLayers
+ * 写入的是已经 fetch 过的数组，reflow effect 会立即短路跳过）。
+ */
+type HistorySnapshot = {
+  editState: Record<string, Partial<PsdLayer>>;
+  layers: PsdLayer[];
+};
+
+/**
  * venue 画布的虚拟 layerId：用于把"画布背景色"塞进 editState 享受 undo/redo。
  * 约定字段：`editState[VENUE_CANVAS_ID].fontColor` = 当前 bgColor（hex，含 #）。
  * 不对应任何真实 layer，不会参与渲染 / 导出 edits 映射。
@@ -105,53 +117,60 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     [],
   );
 
-  // 撤销 / 重做：过去的 editState 快照入 past 栈，未来栈保存 redo；
-  // 防抖 500ms 把"变化前"状态推入 past，避免每个字符/每像素都入栈。
-  const [historyFuture, setHistoryFuture] = useState<
-    Record<string, Partial<PsdLayer>>[]
-  >([]);
-  const historyPastRef = useRef<Record<string, Partial<PsdLayer>>[]>([]);
-  const prevEditStateRef = useRef<Record<string, Partial<PsdLayer>>>({});
+  // undo / redo 历史栈（D6）：快照结构扩展为 { editState, layers }。
+  // 防抖 500ms，在 editState 或 layers 任一变化后将"变化前"快照推入 past 栈。
+  // suppressNextSnapshotRef：undo/redo 触发的 setState 不能再次入栈。
+  const [historyFuture, setHistoryFuture] = useState<HistorySnapshot[]>([]);
+  const historyPastRef = useRef<HistorySnapshot[]>([]);
+  const prevSnapshotRef = useRef<HistorySnapshot>({ editState: {}, layers: [] });
   const suppressNextSnapshotRef = useRef(false);
 
   useEffect(() => {
     if (suppressNextSnapshotRef.current) {
+      // undo/redo 触发的变更：不入栈，但更新 prevSnapshotRef 为当前已恢复的状态，
+      // 使下一次真实用户操作的 "变化前" 基线对齐
       suppressNextSnapshotRef.current = false;
-      prevEditStateRef.current = editState;
+      prevSnapshotRef.current = { editState, layers };
       return;
     }
     const timer = setTimeout(() => {
-      if (editState === prevEditStateRef.current) return;
+      const prev = prevSnapshotRef.current;
+      if (editState === prev.editState && layers === prev.layers) return;
       historyPastRef.current = [
         ...historyPastRef.current,
-        prevEditStateRef.current,
+        prev,
       ];
       if (historyPastRef.current.length > 50) {
         historyPastRef.current = historyPastRef.current.slice(-50);
       }
-      prevEditStateRef.current = editState;
+      prevSnapshotRef.current = { editState, layers };
       setHistoryFuture([]);
     }, 500);
     return () => clearTimeout(timer);
-  }, [editState]);
+  }, [editState, layers]);
 
   const undo = useCallback(() => {
     if (historyPastRef.current.length === 0) return;
-    const prev = historyPastRef.current[historyPastRef.current.length - 1];
+    const prevSnapshot = historyPastRef.current[historyPastRef.current.length - 1];
     historyPastRef.current = historyPastRef.current.slice(0, -1);
-    setHistoryFuture((f) => [editState, ...f]);
+    setHistoryFuture((f) => [{ editState, layers }, ...f]);
     suppressNextSnapshotRef.current = true;
-    setEditState(prev);
-  }, [editState]);
+    setEditState(prevSnapshot.editState);
+    setLayers(prevSnapshot.layers);
+    // D7：同步 venueInsertedLayersRef，切走 / 切回 venue 后还原 undo 后的状态
+    venueInsertedLayersRef.current = prevSnapshot.layers;
+  }, [editState, layers]);
 
   const redo = useCallback(() => {
     if (historyFuture.length === 0) return;
-    const [next, ...rest] = historyFuture;
-    historyPastRef.current = [...historyPastRef.current, editState];
+    const [nextSnapshot, ...rest] = historyFuture;
+    historyPastRef.current = [...historyPastRef.current, { editState, layers }];
     suppressNextSnapshotRef.current = true;
-    setEditState(next);
+    setEditState(nextSnapshot.editState);
+    setLayers(nextSnapshot.layers);
+    venueInsertedLayersRef.current = nextSnapshot.layers;
     setHistoryFuture(rest);
-  }, [editState, historyFuture]);
+  }, [editState, layers, historyFuture]);
 
   // 编辑器字体下拉数据：运行时从 /api/fonts/families 拉取 EXPOSED 精选家族。
   // 独立于 slot 切换的 useEffect，整个编辑器会话只拉一次；拉到后立刻
@@ -216,7 +235,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   // slot 切换：清空历史栈，避免上个 slot 的快照被 undo 回到新 slot 上
   useEffect(() => {
     historyPastRef.current = [];
-    prevEditStateRef.current = {};
+    prevSnapshotRef.current = { editState: {}, layers: [] };
     setHistoryFuture([]);
   }, [activeSlot.templateId]);
 
