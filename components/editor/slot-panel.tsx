@@ -2,7 +2,7 @@
 
 import { X } from "lucide-react";
 import type { Slot, SlotId } from "./editor-shell";
-import type { VenueComponent } from "@/lib/venue-components";
+import type { VenueComponent } from "./venue-components";
 
 export type LeftPanelTab = "venue" | "slots";
 

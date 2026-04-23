@@ -10,7 +10,7 @@ import { CanvasStage } from "./canvas-stage";
 import { PropertyPanel } from "./property-panel";
 import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
-import { MOCK_VENUE_COMPONENTS } from "@/lib/venue-components";
+import { MOCK_VENUE_COMPONENTS } from "./venue-components";
 
 export type SlotId = string;
 
