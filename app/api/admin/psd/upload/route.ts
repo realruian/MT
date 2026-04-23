@@ -200,6 +200,7 @@ export async function POST(req: NextRequest) {
         fontFamily: lr.fontFamily,
         fontSize: lr.fontSize,
         fontColor: lr.fontColor,
+        parentId: lr.parentId,
       })),
     });
   } catch (err) {
