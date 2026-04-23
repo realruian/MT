@@ -24,7 +24,7 @@ export interface SlotPreset {
 
 // Demo 占位：全部指向现有 "38礼遇-会场" 模板。
 // 业务阶段在后台上传各尺寸真实 PSD 后，把此处的 templateId 替换为对应真实模板 ID 即可。
-const DEMO_TEMPLATE = "psd_mo9hkl9y_wd8n";
+const DEMO_TEMPLATE = "psd_mobmnxso_532a";
 
 // 尺寸列表按「一键拓展」弹窗的业务清单维护：外卖渠道在前、团侧渠道在后，
 // 组内顺序与 PRD 给到的列表一致，便于产运对照检查。
