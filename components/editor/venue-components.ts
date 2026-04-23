@@ -1,15 +1,16 @@
 import type { PsdLayer } from "@/types/template";
 
 /**
- * 会场组件（venue component）：可插入到当前会场画布的"业务积木"。
- * 将来由后台上传功能生产数据，接口返回结构按这个 type 对齐；
- * Step 1 消费方（SlotPanel）只渲染 thumbnail / name / group，payload 暂留空。
+ * 会场组件（venue component）：可插入到当前会场画布的"业务积木"，
+ * 在 SlotPanel 的「会场」tab 下以"会场组件卡片（venue component card）"形式
+ * 呈现。将来由后台上传功能生产数据，接口返回结构按这个 type 对齐；
+ * Step 1 消费方只渲染 thumbnail / name / group，payload 暂留空。
  */
 export interface VenueComponent {
   id: string;
-  /** ≤ 6 字展示名 */
+  /** 会场组件卡片下方展示名，≤ 6 字 */
   name: string;
-  /** 分组名；SlotPanel 按 group 出现顺序聚合排序，相同 group 的组件同组展示 */
+  /** 分组名；VenueComponentLibrary 按 group 首次出现顺序聚合渲染 */
   group: string;
   /** 缩略图 URL（生产环境是 blob URL，正方形） */
   thumbnail: string;
@@ -25,8 +26,9 @@ function mockThumb(color: string): string {
 }
 
 /**
- * 分组表：保持严格顺序（SlotPanel 按 groups[i].name 首次出现顺序渲染）。
- * 每组一个代表色，组内 A/B 两卡共用同色，以"同色 = 同组"强化视觉聚合。
+ * 会场组件分组表：保持严格顺序（VenueComponentLibrary 按 groups[i].name 首次
+ * 出现顺序渲染）。每组一个代表色，组内 A/B 两卡共用同色，以"同色 = 同组"
+ * 强化视觉聚合。
  */
 const GROUPS: { name: string; short: string; color: string }[] = [
   { name: "头图模块", short: "头图", color: "#FF5D6E" },
@@ -39,12 +41,12 @@ const GROUPS: { name: string; short: string; color: string }[] = [
 ];
 
 /**
- * Mock 组件列表：严格按 GROUPS 顺序展开，每组 2 张卡片（A / B）。
+ * 会场组件 mock 列表：严格按 GROUPS 顺序展开，每组 2 张会场组件卡片（A / B）。
  * Step 2 将替换为真实接口：GET /api/admin/venue-components → VenueComponent[]
  */
 export const MOCK_VENUE_COMPONENTS: VenueComponent[] = GROUPS.flatMap((g) =>
   (["A", "B"] as const).map((suffix) => ({
-    id: `comp_${g.short}_${suffix.toLowerCase()}`,
+    id: `venue_${g.short}_${suffix.toLowerCase()}`,
     name: `${g.short} ${suffix}`,
     group: g.name,
     thumbnail: mockThumb(g.color),

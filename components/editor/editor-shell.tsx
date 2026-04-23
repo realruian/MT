@@ -49,13 +49,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   const [exporting, setExporting] = useState(false);
   const activeSlot = slots.find((s) => s.id === activeSlotId) ?? slots[0];
 
-  // 左侧面板 tab 状态：会场（组件库）/ 资源位（多尺寸 slot 列表）。
+  // 左侧面板 tab 状态：会场（会场组件库）/ 资源位（多尺寸 slot 列表）。
   // 默认停在"会场"tab 与默认 activeSlotId="venue" 保持一致的画布入口。
   const [leftTab, setLeftTab] = useState<LeftPanelTab>("venue");
-  // 会场 tab 下的组件卡片 active 视觉态；Step 1 仅用于高亮，不做插入
-  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
-    null,
-  );
+  // 当前被选中的会场组件卡片 id；Step 1 仅用于卡片 active 高亮，不做插入
+  const [selectedVenueComponentId, setSelectedVenueComponentId] = useState<
+    string | null
+  >(null);
 
   // 二级选中：moduleId 模块级 / layerId 元素级（layerId 必须配合 moduleId）
   const [selected, setSelected] = useState<
@@ -218,10 +218,10 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     }
   }
 
-  // Step 1 占位：仅记录 active 态 + console.log，不做插入
-  function handleSelectComponent(id: string) {
-    setSelectedComponentId(id);
-    console.log("[VenueComponent] selected:", id);
+  // Step 1 占位：点击会场组件卡片仅置 active 态 + console.log，不做插入
+  function handleSelectVenueComponent(id: string) {
+    setSelectedVenueComponentId(id);
+    console.log("[VenueComponentCard] selected:", id);
   }
 
   function handleReplaceModule(moduleId: string) {
@@ -372,9 +372,9 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onDelete={handleDeleteSlot}
             tab={leftTab}
             onTabChange={handleTabChange}
-            components={MOCK_VENUE_COMPONENTS}
-            selectedComponentId={selectedComponentId}
-            onSelectComponent={handleSelectComponent}
+            venueComponents={MOCK_VENUE_COMPONENTS}
+            selectedVenueComponentId={selectedVenueComponentId}
+            onSelectVenueComponent={handleSelectVenueComponent}
           />
           <CanvasStage
             template={template}

@@ -13,9 +13,12 @@ interface SlotPanelProps {
   onDelete: (id: SlotId) => void;
   tab: LeftPanelTab;
   onTabChange: (tab: LeftPanelTab) => void;
-  components: VenueComponent[];
-  selectedComponentId: string | null;
-  onSelectComponent: (id: string) => void;
+  /** 会场组件库数据（未来接口返回，同结构） */
+  venueComponents: VenueComponent[];
+  /** 当前被选中的会场组件卡片 id；null 表示未选 */
+  selectedVenueComponentId: string | null;
+  /** 点击会场组件卡片的回调（Step 1 仅置 active，Step 2 会走插入） */
+  onSelectVenueComponent: (id: string) => void;
 }
 
 /** 名称超过 7 字按字符数硬截断为 "xxxxxxx…"，保证视觉长度稳定 */
@@ -31,9 +34,9 @@ export function SlotPanel({
   onDelete,
   tab,
   onTabChange,
-  components,
-  selectedComponentId,
-  onSelectComponent,
+  venueComponents,
+  selectedVenueComponentId,
+  onSelectVenueComponent,
 }: SlotPanelProps) {
   return (
     <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#7C889C]/10">
@@ -41,10 +44,10 @@ export function SlotPanel({
       {/* 隐藏滚动条但保留滚动：webkit / firefox / 旧 IE 三端都隐藏 */}
       <div className="flex-1 overflow-y-auto pb-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {tab === "venue" ? (
-          <VenueTab
-            components={components}
-            selectedComponentId={selectedComponentId}
-            onSelectComponent={onSelectComponent}
+          <VenueComponentLibrary
+            components={venueComponents}
+            selectedId={selectedVenueComponentId}
+            onSelect={onSelectVenueComponent}
           />
         ) : (
           <SlotsTab
@@ -105,17 +108,24 @@ function TabButton({
   );
 }
 
-// --- 会场 tab：组件库 ---
+// --- 会场 tab：会场组件库（VenueComponentLibrary） ---
+// 统一术语：这里的"卡片"一律称作"会场组件卡片 / venue component card"，
+// 避免与通用 Card 或业务卡片（优惠券卡片、商品卡片等）混淆。
 
-function VenueTab({
-  components,
-  selectedComponentId,
-  onSelectComponent,
-}: {
+interface VenueComponentLibraryProps {
+  /** 会场组件列表（按 group 聚合渲染） */
   components: VenueComponent[];
-  selectedComponentId: string | null;
-  onSelectComponent: (id: string) => void;
-}) {
+  /** 当前被选中的会场组件卡片 id；null 表示未选 */
+  selectedId: string | null;
+  /** 点击会场组件卡片的回调 */
+  onSelect: (id: string) => void;
+}
+
+function VenueComponentLibrary({
+  components,
+  selectedId,
+  onSelect,
+}: VenueComponentLibraryProps) {
   if (components.length === 0) {
     return (
       <p className="mt-20 text-center text-[12px] text-[#7C889C]">
@@ -139,45 +149,79 @@ function VenueTab({
   return (
     <div>
       {groupOrder.map((g, idx) => (
-        <section key={g}>
-          {showGroupTitle && (
-            <h4
-              className={[
-                "px-5 mb-2 text-[12px] text-[#7C889C]",
-                idx === 0 ? "mt-3" : "mt-5",
-              ].join(" ")}
-            >
-              {g}
-            </h4>
-          )}
-          <ul className="grid grid-cols-2 gap-2 px-5">
-            {byGroup.get(g)!.map((c) => (
-              <ComponentCard
-                key={c.id}
-                component={c}
-                selected={c.id === selectedComponentId}
-                onSelect={() => onSelectComponent(c.id)}
-              />
-            ))}
-          </ul>
-        </section>
+        <VenueComponentGroup
+          key={g}
+          title={g}
+          showTitle={showGroupTitle}
+          isFirst={idx === 0}
+          components={byGroup.get(g)!}
+          selectedId={selectedId}
+          onSelect={onSelect}
+        />
       ))}
     </div>
   );
 }
 
-function ComponentCard({
-  component,
-  selected,
+interface VenueComponentGroupProps {
+  /** 分组标题；showTitle=false 时不渲染 <h4> */
+  title: string;
+  showTitle: boolean;
+  /** 是否是第一组（影响顶部 margin：首组 mt-3、后续组 mt-5） */
+  isFirst: boolean;
+  components: VenueComponent[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
+function VenueComponentGroup({
+  title,
+  showTitle,
+  isFirst,
+  components,
+  selectedId,
   onSelect,
-}: {
+}: VenueComponentGroupProps) {
+  return (
+    <section>
+      {showTitle && (
+        <h4
+          className={[
+            "px-5 mb-2 text-[12px] text-[#7C889C]",
+            isFirst ? "mt-3" : "mt-5",
+          ].join(" ")}
+        >
+          {title}
+        </h4>
+      )}
+      <ul className="grid grid-cols-2 gap-2 px-5">
+        {components.map((c) => (
+          <VenueComponentCard
+            key={c.id}
+            component={c}
+            selected={c.id === selectedId}
+            onSelect={() => onSelect(c.id)}
+          />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+interface VenueComponentCardProps {
   component: VenueComponent;
   selected: boolean;
   onSelect: () => void;
-}) {
-  // 显式 100×100 外壳 + 固定 76×76 内层缩略图（统一"12px 灰边"，与 mock SVG 的
-  // 内部结构解耦）。不再依赖 img 的 padding，避免 p-3 + object-contain 在某些
-  // viewBox/渲染路径下失效导致色块铺满整张卡片。
+}
+
+function VenueComponentCard({
+  component,
+  selected,
+  onSelect,
+}: VenueComponentCardProps) {
+  // 会场组件卡片：显式 100×100 外壳 + 固定 76×76 内层缩略图（统一"12px 灰边"，
+  // 与 mock SVG 的内部结构解耦）。不依赖 img 的 padding，避免 p-3 +
+  // object-contain 在某些 viewBox / 渲染路径下失效导致色块铺满整张卡片。
   return (
     <li>
       <button
