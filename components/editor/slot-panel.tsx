@@ -174,6 +174,9 @@ function ComponentCard({
   selected: boolean;
   onSelect: () => void;
 }) {
+  // 显式 100×100 外壳 + 固定 76×76 内层缩略图（统一"12px 灰边"，与 mock SVG 的
+  // 内部结构解耦）。不再依赖 img 的 padding，避免 p-3 + object-contain 在某些
+  // viewBox/渲染路径下失效导致色块铺满整张卡片。
   return (
     <li>
       <button
@@ -183,20 +186,19 @@ function ComponentCard({
       >
         <div
           className={[
-            "flex size-[100px] items-center justify-center rounded-[8px] transition-colors",
+            "flex size-[100px] cursor-pointer items-center justify-center rounded-[8px] transition-colors",
             selected ? "bg-[#E4E7EC]" : "bg-[#F5F6F8] hover:bg-[#EEF0F3]",
-            "cursor-pointer",
           ].join(" ")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={component.thumbnail}
             alt={component.name}
-            className="size-full object-contain p-3"
+            className="size-[76px] object-cover"
             draggable={false}
           />
         </div>
-        <p className="mt-1.5 text-center text-[12px] text-[#4F607A]">
+        <p className="mt-1.5 text-center text-[12px] leading-none text-[#4F607A]">
           {component.name}
         </p>
       </button>

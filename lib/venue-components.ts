@@ -17,9 +17,10 @@ export interface VenueComponent {
   payload: { layers: PsdLayer[] };
 }
 
-/** 内联 SVG 占位缩略图：纯色底 + 居中标签。等待真实上传数据接入前用这个。 */
-function mockThumb(color: string, label: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="8" fill="${color}"/><text x="50" y="57" text-anchor="middle" font-size="20" font-family="sans-serif" font-weight="600" fill="white">${label}</text></svg>`;
+/** 内联 SVG 占位缩略图：纯色方块（无圆角，无文字）。等真实上传数据接入前用这个。
+ *  UI 侧会放在 76×76 固定 box 里统一显示，viewBox 直接铺满即可。 */
+function mockThumb(color: string): string {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${color}"/></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
@@ -28,35 +29,35 @@ export const MOCK_VENUE_COMPONENTS: VenueComponent[] = [
     id: "comp_header_a",
     name: "头图 A",
     group: "头部模块",
-    thumbnail: mockThumb("#FF5D6E", "头A"),
+    thumbnail: mockThumb("#FF5D6E"),
     payload: { layers: [] },
   },
   {
     id: "comp_header_b",
     name: "头图 B",
     group: "头部模块",
-    thumbnail: mockThumb("#FF8A3D", "头B"),
+    thumbnail: mockThumb("#FF8A3D"),
     payload: { layers: [] },
   },
   {
     id: "comp_card_a",
     name: "卡片 A",
     group: "内容模块",
-    thumbnail: mockThumb("#3BA7FF", "卡A"),
+    thumbnail: mockThumb("#3BA7FF"),
     payload: { layers: [] },
   },
   {
     id: "comp_card_b",
     name: "卡片 B",
     group: "内容模块",
-    thumbnail: mockThumb("#6C63FF", "卡B"),
+    thumbnail: mockThumb("#6C63FF"),
     payload: { layers: [] },
   },
   {
     id: "comp_btn_group",
     name: "按钮组",
-    group: "内容模块",
-    thumbnail: mockThumb("#10B981", "按钮"),
+    group: "交互模块",
+    thumbnail: mockThumb("#10B981"),
     payload: { layers: [] },
   },
 ];
