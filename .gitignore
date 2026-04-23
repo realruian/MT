@@ -32,6 +32,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...但保留 .env.local.example 之类的模板文件，仅忽略真实 secrets
+!.env*.example
 
 # vercel
 .vercel

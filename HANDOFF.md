@@ -1,7 +1,7 @@
 # 会场组件功能 HANDOFF
 
-> 最后更新：2026-04-23（PR2 完成）&nbsp;·&nbsp; 作者：交接中
-> 对应分支：`main` &nbsp;·&nbsp; PR1 commit：`de8c999`；PR2 待提交
+> 最后更新：2026-04-23（PR3 完成）&nbsp;·&nbsp; 作者：交接中
+> 对应分支：`main` &nbsp;·&nbsp; PR1 `de8c999`；PR2 `9fc8e30`；拖拽换位 `453f7a7`；ensureRootGroup 已提交；PR3 待提交
 
 面向接手这块功能的下一位开发。读完能在 10 分钟内接住编辑器「会场组件库」
 + 管理后台「会场组件上传」两条链路。
@@ -50,6 +50,46 @@
   画布外的装饰背景"（venue 的「圆角背景」layer_6 从 y=400 高 1246 溢出画
   布到 1646 就是典型），把它们从原始内容底部计算里排除，插入组件不再被
   推到离真内容 700+ 像素的空白区
+
+### PR3：编辑器接入实时会场组件 API
+**API**
+- `GET /api/venue-components` — 公开路由（不在 /admin 下，无鉴权），复用
+  `listVenueComponents`，把 `groupName / thumbnailUrl` 映射为前端 `group /
+  thumbnail` 形状返回
+
+**前端数据层**
+- `components/editor/venue-components.ts`：`MOCK_VENUE_COMPONENTS` →
+  `FALLBACK_VENUE_COMPONENTS`；新增 `fetchVenueComponents()` 默认走实时
+  API，`NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true` 命中时改读 fallback
+  数组（dev 阶段 DB 空表 / demo 故障兜底）。`.env.local.example` 有开关
+  用法注释
+- fetch 使用 `cache: "no-store"`，保证「刷新组件库」能拿到最新数据
+
+**UI**
+- SlotPanel 托管 `components / error / refreshing` 状态；TabHeader 右侧在
+  venue tab 激活时显示 RefreshCw icon，点击触发 `load()`，期间 `animate-spin`
+- 四种渲染态：`components === null && !error` → 按 7 分组 × 2 张灰卡骨架屏；
+  `error` → 文案 + 重试按钮；`components === []` → 「暂无组件，请到后台上传」；
+  有数据 → 按 `VENUE_COMPONENT_GROUPS` 常量顺序固定渲染 7 分组（不依赖 DB
+  返回顺序），**空分组也保留标题 + 虚线边框「暂无组件」占位**
+- `onSelectVenueComponent` 签名改为传完整 `VenueComponent` 对象（之前传 id
+  由 shell 自查 mock 常量找回对象，现在 shell 不再持有组件列表）
+- editor-shell 删掉 `MOCK_VENUE_COMPONENTS` 的 import 和查找逻辑
+
+### ensureRootGroup：venue 组件 payload 规范化
+**问题**：运营 PSD 不一定把组件包进 Group，parser 解析出一堆扁平 leaf
+（`parentId == null`），导致编辑器一系列"模块级"交互全失效（选中 / 拖拽
+换位 / 删除模块 / 属性面板总尺寸）。诊断日志指向一个根因：没有根 group。
+
+**修复**：`lib/venue-component-psd.ts::ensureRootGroup` 在
+`buildVenueComponentFromPsd` 末尾自动补一个 `root_<nonce>` 虚拟 group：
+- 仅在没有顶层 group 时合成（mock 组件、规范 PSD 不受影响）
+- width **固定 702**（不从子 layer union 算，避免右边缘 hit testing 死角）
+- height = 所有子 leaf 的 `max(y + h)`
+- 所有原顶层 leaf 的 `parentId` 重写指向它
+
+**历史数据**：PR2 之前入库的 venue 组件 payload 是扁平的，需要走一次
+后台编辑 → 重传原 PSD（PATCH 流水线自动规范化）才能生效。
 
 ### PR2：编辑 / 排序 / 重新生成缩略图
 **API**
@@ -168,7 +208,7 @@
 ```
 components/editor/
   slot-panel.tsx                  # 左侧 tab 容器 + VenueComponentLibrary/Group/Card 子组件
-  venue-components.ts             # Mock 数据（PR3 会换成真实 fetch）
+  venue-components.ts             # fetchVenueComponents + FALLBACK（降级用）
   insert-venue-component.ts       # insertComponentIntoLayers / reflowVenueComponents
                                   #   / recomputeVenueHeight / computeOriginalContentBottom
                                   #   / isFullCanvasBackground + 尺寸常量
@@ -181,6 +221,9 @@ app/api/admin/venue-components/
   [id]/regenerate-thumbnail/route.ts  # POST 重生缩略图
   upload/route.ts                 # POST 上传
   reorder/route.ts                # POST 组内批量改 sort_order
+
+app/api/venue-components/
+  route.ts                        # GET 公开列表（编辑器消费，映射 group/thumbnail 形状）
 
 lib/
   venue-component-groups.ts       # VENUE_COMPONENT_GROUPS 7 分组常量 + guard
@@ -233,7 +276,8 @@ types/
 ### API 路径
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | `/api/admin/venue-components` | 按 group+sort_order 排序列表 |
+| GET | `/api/venue-components` | **编辑器公开接口**，编辑器「会场」tab 消费 |
+| GET | `/api/admin/venue-components` | 按 group+sort_order 排序列表（后台管理） |
 | POST | `/api/admin/venue-components/upload` | multipart：psd / name / group / thumbnail? |
 | PATCH | `/api/admin/venue-components/[id]` | multipart：psd? / name? / group? / thumbnail?（至少 1 个） |
 | POST | `/api/admin/venue-components/[id]/regenerate-thumbnail` | 从 DB payload 重合成缩略图 |
@@ -245,41 +289,48 @@ types/
 
 ## 4. 当前状态
 
-**PR1（后台组件上传）已完成并提交**（commit `de8c999`）。
-**PR2（编辑 / 排序 / 重新生成缩略图）已完成，待自测提交。** 代码 tsc / lint
-全过；4 条 API + Admin UI 3 按钮 + 组内拖拽完整联通。
+- **PR1**（后台组件上传）已提交（`de8c999`）
+- **PR2**（编辑 / 排序 / 重生缩略图）已提交（`9fc8e30`）
+- **venue 拖拽换位**（Figma autolayout 语义）已提交（`453f7a7`）
+- **ensureRootGroup**（venue 组件 payload 规范化）已提交
+- **PR3**（编辑器接入实时 API）已完成，待自测提交
 
-编辑器侧仍在消费 `MOCK_VENUE_COMPONENTS`（7 分组 × 2 张 = 14 张 mock 卡
-片），PR3 完成前保持这种状态 demo 不受影响。
+编辑器侧默认走 `/api/venue-components` 实时数据；无数据时 SlotPanel
+展示「暂无组件，请到后台上传」空态。降级走 `NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true`
+环境变量。
 
-### PR2 自测 checklist（demo 前过一遍）
+### 自测 checklist（全链路 demo 前过一遍）
 
 ```bash
 # 0. DB schema OK
 curl -s -X POST http://localhost:3000/api/admin/init-db
+# 1. 公开列表接口
+curl -s http://localhost:3000/api/venue-components | python3 -m json.tool
 ```
 
-进入 `/admin/venue-components`：
+#### 后台管理（`/admin/venue-components`）
 1. 上传一个组件（PR1 原流程，确认未回归）
-2. hover 卡片 → 看到 3 个图标按钮（编辑 / 重新生成缩略图 / 删除）
+2. hover 卡片 → 3 个图标按钮（编辑 / 重新生成缩略图 / 删除）
 3. 点编辑 → 改名保存 → 卡片名更新
 4. 点编辑 → 换一个分组保存 → 卡片移到新分组
-5. 点编辑 → 重传 PSD 不传缩略图 → 保存后缩略图也跟着变（自动重生）
-6. 点重新生成缩略图按钮 → 卡片出现生成中遮罩 → 完成后 toast
-7. 同组内两张卡片互拖 → drop 指示线出现 → 松开后顺序改变 → 刷新页面
-   顺序保持
-8. 拖到卡片边缘（左/右半边）→ 确认 drop 指示线在正确一侧
+5. 点编辑 → 重传 PSD 不传缩略图 → 缩略图自动重生
+6. 点重新生成缩略图 → 生成中遮罩 → toast
+7. 同组内拖拽 → drop 指示线 → 松开后顺序改变 → 刷新页面顺序保持
+
+#### 编辑器（进入任意 psd 模板编辑器）
+8. 「会场」tab 打开 → 骨架屏 → 真实组件 / 空态
+9. 点刷新 icon → 旋转动画 → 列表更新
+10. 后台删除一个组件 → 编辑器点刷新 → 消失
+11. 点一个组件 → 插入到 venue 画布底部 → **整个 702 宽组件被蓝框选中**
+    （ensureRootGroup 保证）→ 文字 / 图片可编辑
+12. 画布上两个真实组件互拖换位（PR2 的 autolayout 语义同样生效）
+13. 下载 PNG → 字体 / 图层位置 / 背景色都正确
+14. `NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true npm run dev` → 命中降级
+    通道，7 分组 × 2 张 SVG mock 直出，插入 / 导出全链路不报错
 
 ---
 
 ## 5. 待办
-
-### PR3：编辑器接入实时数据
-- `MOCK_VENUE_COMPONENTS` → `await fetch('/api/venue-components')`（新增公
-  开 API，因为编辑器页前端不应该走 admin 端点）
-- `SlotPanel` 的 loading 态 + 错误兜底
-- `VenueComponent` 类型从 `types/venue-component.ts` import，去掉 mock 文件
-- 验证：后台上传一个 → 编辑器页刷新后能看到 → 点击插入画布 → 导出包含
 
 ### 可选增强
 - 后台批量上传（一次多个 PSD）

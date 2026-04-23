@@ -14,7 +14,7 @@ import { CanvasStage } from "./canvas-stage";
 import { PropertyPanel } from "./property-panel";
 import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
-import { MOCK_VENUE_COMPONENTS } from "./venue-components";
+import type { VenueComponent } from "./venue-components";
 import {
   computeOriginalContentBottom,
   insertComponentIntoLayers,
@@ -277,10 +277,12 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   // 画布高度不在这里算，由下面的 useEffect([layers, editState]) 统一重算。
   // 假定调用时 activeSlotId === "venue"（会场 tab 下点的组件，tab 切换逻辑已
   // 保证这个恒等）；非 venue 场景只更新 active 视觉态不动画布。
-  function handleSelectVenueComponent(id: string) {
-    setSelectedVenueComponentId(id);
-    const component = MOCK_VENUE_COMPONENTS.find((c) => c.id === id);
-    if (!component) return;
+  //
+  // PR3 起 SlotPanel 直传完整 VenueComponent 对象（不再传 id 由 shell 自查），
+  // 因为组件数据已从 MOCK 常量改为 /api/venue-components 实时数据，shell
+  // 本身不再持有组件列表。
+  function handleSelectVenueComponent(component: VenueComponent) {
+    setSelectedVenueComponentId(component.id);
     if (activeSlotId !== "venue") {
       console.warn(
         "[VenueComponentCard] skipped insert: activeSlotId is not venue",
@@ -304,7 +306,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     ];
     setLayers(nextLayers);
 
-    // 选中新组件根：如果是 group 走模块选中（可整体拖动），否则走叶子选中
+    // 选中新组件根：经 ensureRootGroup 规范化后根永远是 group，走模块选中；
+    // 兜底分支保留以防 rootLayerId 为 null（组件 payload 为空之类异常）
     if (rootLayerId) {
       const root = nextLayers.find((l) => l.id === rootLayerId);
       if (root?.layerType === "group") {
@@ -313,7 +316,12 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         setSelected({ layerId: rootLayerId });
       }
     }
-    console.log("[VenueComponentCard] inserted:", id, "root:", rootLayerId);
+    console.log(
+      "[VenueComponentCard] inserted:",
+      component.id,
+      "root:",
+      rootLayerId,
+    );
   }
 
   // venue 插入组件的垂直自动布局：layers/editState 变化时先对所有实例做
@@ -574,7 +582,6 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onDelete={handleDeleteSlot}
             tab={leftTab}
             onTabChange={handleTabChange}
-            venueComponents={MOCK_VENUE_COMPONENTS}
             selectedVenueComponentId={selectedVenueComponentId}
             onSelectVenueComponent={handleSelectVenueComponent}
           />

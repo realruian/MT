@@ -149,12 +149,15 @@ function buildMockLayers(
 }
 
 /**
- * 会场组件 mock 列表：严格按 GROUPS 顺序展开，每组 2 张会场组件卡片（A / B）。
- * 每张卡片的 payload.layers 是 [group, bg image(public PNG), text(组件名)]。
- * Step 2 真实接口上线后把这份数组换成 `await fetch('/api/admin/venue-components')`
- * 的结果即可。
+ * 会场组件 fallback 列表：严格按 GROUPS 顺序展开，每组 2 张会场组件卡片
+ * （A / B）。每张卡片的 payload.layers 是 [group, bg image(public PNG),
+ * text(组件名)]。
+ *
+ * PR3 起默认走 `/api/venue-components` 实时接口；这份数组仅在降级通道
+ * （环境变量 `NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true`）生效，用于
+ * dev 阶段无 DB 数据 / demo 临时演示。
  */
-export const MOCK_VENUE_COMPONENTS: VenueComponent[] = GROUPS.flatMap((g) =>
+export const FALLBACK_VENUE_COMPONENTS: VenueComponent[] = GROUPS.flatMap((g) =>
   (["A", "B"] as const).map((suffix) => {
     const id = `venue_${g.short}_${suffix.toLowerCase()}`;
     const name = `${g.short} ${suffix}`;
@@ -169,3 +172,24 @@ export const MOCK_VENUE_COMPONENTS: VenueComponent[] = GROUPS.flatMap((g) =>
     };
   }),
 );
+
+/**
+ * 拉实时会场组件列表。
+ * - 命中 `NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true` 时直接返回
+ *   FALLBACK_VENUE_COMPONENTS（同步 resolve），供 dev / demo 降级
+ * - 否则 GET `/api/venue-components`；cache: "no-store" 保证每次调用
+ *   拿到最新数据（点「刷新组件库」icon 的基础）
+ * - 失败抛 Error，由调用方（SlotPanel）切 error 态并提供重试
+ */
+export async function fetchVenueComponents(): Promise<VenueComponent[]> {
+  if (process.env.NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS === "true") {
+    return FALLBACK_VENUE_COMPONENTS;
+  }
+  const res = await fetch("/api/venue-components", { cache: "no-store" });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error || `加载失败 (${res.status})`);
+  }
+  const data = (await res.json()) as { components?: VenueComponent[] };
+  return data.components ?? [];
+}
