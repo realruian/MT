@@ -29,7 +29,7 @@ export interface SlotPreset {
 
 // 无真实 PSD 的占位资源位降级展示用的 demo 模板（38礼遇-会场）。
 // 接入真实模板后从 sizes[].templateId 直接读取，该常量仅作兜底。
-export const SLOT_PRESETS_DEMO_TEMPLATE = "psd_mobmnxso_532a";
+export const SLOT_PRESETS_DEMO_TEMPLATE = "psd_mobq9oxb_5j1m";
 
 // 尺寸列表按「一键拓展」弹窗的业务清单维护：外卖渠道在前、团侧渠道在后，
 // 组内顺序与 PRD 给到的列表一致，便于产运对照检查。
