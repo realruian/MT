@@ -12,9 +12,11 @@ import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
 import { MOCK_VENUE_COMPONENTS } from "./venue-components";
 import {
+  computeOriginalContentBottom,
   insertComponentIntoLayers,
   recomputeVenueHeight,
   reflowVenueComponents,
+  reorderInstanceInLayers,
 } from "./insert-venue-component";
 
 export type SlotId = string;
@@ -326,6 +328,37 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     });
   }, [layers, editState, activeSlot.id]);
 
+  // venue 组件拖拽换位：把被拖实例在 layers 里的 instanceId 分组整体 splice
+  // 到 newIndex 位置，reflow useEffect 自动基于新数组顺序重算所有 y。
+  // - newIndex 与当前下标相同时 reorderInstanceInLayers 仍返回新引用，但
+  //   reflow 里会短路返回原 layers，不触发无谓 setState
+  // - 同步 venueInsertedLayersRef，保证切走 / 切回 venue 后顺序不回退
+  const handleReorderInstance = useCallback(
+    (instanceId: string, newIndex: number) => {
+      if (activeSlot.id !== "venue") return;
+      setLayers((prev) => {
+        const next = reorderInstanceInLayers(prev, instanceId, newIndex);
+        venueInsertedLayersRef.current = next.filter(
+          (l) => l.sourceComponentId != null,
+        );
+        return next;
+      });
+    },
+    [activeSlot.id],
+  );
+
+  // venue 原始内容底部：canvas-stage 在 venue 实例拖拽换位时用它约束最小 y
+  // （被拖实例不能被拖到盖住 venue 原 PSD 可见内容）
+  const venueOriginalContentBottom =
+    activeSlot.id === "venue"
+      ? computeOriginalContentBottom(
+          layers,
+          editState,
+          venueCanvasRef.current.width,
+          venueCanvasRef.current.height,
+        )
+      : 0;
+
   // beforeunload 提示：venue 当前 layers 含任一"来自组件库的图层"时挂载原生
   // 离开确认（浏览器只显示默认文案，无法自定义），提醒用户刷新会丢失插入
   useEffect(() => {
@@ -530,6 +563,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             selection={selected}
             onSelect={setSelected}
             onUpdate={updateLayer}
+            onReorderInstance={handleReorderInstance}
+            venueOriginalContentBottom={venueOriginalContentBottom}
           />
           <PropertyPanel
             template={template}

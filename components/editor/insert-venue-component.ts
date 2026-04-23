@@ -1,8 +1,9 @@
 import type { PsdLayer } from "@/types/template";
 import type { VenueComponent } from "./venue-components";
 
-/** 插入一个组件时，新 layer 距当前画布最底部的间距（px） */
-const INSERT_GAP = 24;
+/** 插入一个组件时，新 layer 距当前画布最底部的间距（px）。
+ *  canvas-stage 拖拽换位逻辑也会复用它作为 dropIndicator 与上边界约束。 */
+export const INSERT_GAP = 24;
 /** venue 画布底部预留的空白（px）——最底部内容 + 这个数 = 画布高度 */
 export const CANVAS_BOTTOM_PADDING = 48;
 /** venue 画布固定宽度（px），与 template 原始 canvasWidth 对齐 */
@@ -342,6 +343,69 @@ function computeCurrentBottom(layers: PsdLayer[]): number {
  * @param component        要插入的会场组件
  * @param venueTemplateId  venue 的 templateId，所有新 layer 归属到这个 id
  */
+/**
+ * 把一个 venue 实例（按 instanceId 聚合的所有 layer）在「实例数组」里挪到
+ * 指定下标位置。输出 layers 数组的约定：
+ * - 所有非实例 layer（`instanceId == null`）保持原相对顺序排在最前
+ * - 所有实例 layer 按「各 instanceId 首次出现下标」聚合成分组，分组顺序即
+ *   新的实例顺序
+ *
+ * 这个不变式依赖 reflow 的数据假设：「layers 数组里 instanceId 首次出现的
+ * 下标 = 该实例的 reflow 顺序」（见 reflowVenueComponents / HANDOFF §2.4）。
+ * 所以 reorder 只需要把被拖实例整组 splice 到新下标，reflow 会自动把所有
+ * 实例的 y 重算成从上到下无缝铺排。
+ *
+ * @param newIndex 目标插入下标，值域 [0, others.length]；`others` 指除了被
+ *   拖实例之外的实例集合。0 = 排到最前，others.length = 排到最后。
+ * @returns 重排后的新 layers 数组（总是返回新引用，调用方可直接 setState）。
+ *   若被拖 instanceId 不存在 / 仅剩自己一个实例 / newIndex 等于当前下标，
+ *   仍返回新数组但内容与输入等价，交给 reflow 决定是否短路。
+ */
+export function reorderInstanceInLayers(
+  layers: PsdLayer[],
+  instanceId: string,
+  newIndex: number,
+): PsdLayer[] {
+  // 1. 抽出被拖实例的所有 layer（顺序保留，保持 zIndex / 父子关系稳定）
+  const instanceLayers = layers.filter((l) => l.instanceId === instanceId);
+  if (instanceLayers.length === 0) return layers;
+
+  // 2. 把剩余 layers 按 instanceId 分组（首次出现下标即分组顺序），非实例
+  //    layer 单独收集
+  const originalLayers: PsdLayer[] = [];
+  const otherInstanceIds: string[] = [];
+  const byInstance = new Map<string, PsdLayer[]>();
+  for (const l of layers) {
+    if (l.instanceId === instanceId) continue;
+    if (!l.instanceId) {
+      originalLayers.push(l);
+      continue;
+    }
+    if (!byInstance.has(l.instanceId)) {
+      byInstance.set(l.instanceId, []);
+      otherInstanceIds.push(l.instanceId);
+    }
+    byInstance.get(l.instanceId)!.push(l);
+  }
+
+  // 3. 夹住 newIndex 到合法范围
+  const clampedIndex = Math.max(0, Math.min(newIndex, otherInstanceIds.length));
+
+  // 4. 插入到新位置；flatten 回一维数组
+  const reorderedInstanceIds = [
+    ...otherInstanceIds.slice(0, clampedIndex),
+    instanceId,
+    ...otherInstanceIds.slice(clampedIndex),
+  ];
+  byInstance.set(instanceId, instanceLayers);
+  const reorderedInstances: PsdLayer[] = [];
+  for (const id of reorderedInstanceIds) {
+    reorderedInstances.push(...byInstance.get(id)!);
+  }
+
+  return [...originalLayers, ...reorderedInstances];
+}
+
 export function insertComponentIntoLayers(
   layers: PsdLayer[],
   component: VenueComponent,
