@@ -61,27 +61,42 @@ export interface Slot {
 interface EditorShellProps {
   template: Template;
   activity?: string;
+  /** true = 全套活动模板，启用完整 venue 编辑器；false = 普通编辑器（无左侧 + 无延展） */
+  isVenueMode?: boolean;
 }
 
-export function EditorShell({ template, activity }: EditorShellProps) {
-  const [slots, setSlots] = useState<Slot[]>([
-    {
-      id: "venue",
-      name: "会场",
-      templateId: template.id,
-      thumbnail: template.thumbnail,
-      width: template.canvasWidth ?? template.width,
-      height: template.canvasHeight ?? template.height,
-      bgColor: "#FFFFFF",
-    },
-  ]);
+export function EditorShell({ template, activity, isVenueMode = false }: EditorShellProps) {
+  const [slots, setSlots] = useState<Slot[]>(() =>
+    isVenueMode
+      ? [
+          {
+            id: "venue",
+            name: "会场",
+            templateId: template.id,
+            thumbnail: template.thumbnail,
+            width: template.canvasWidth ?? template.width,
+            height: template.canvasHeight ?? template.height,
+            bgColor: "#FFFFFF",
+          },
+        ]
+      : [
+          {
+            id: "main",
+            name: template.name,
+            templateId: template.id,
+            thumbnail: template.thumbnail,
+            width: template.canvasWidth ?? template.width,
+            height: template.canvasHeight ?? template.height,
+          },
+        ],
+  );
   // venue 模板原始画布尺寸（用于 reflow / recompute 里识别"铺底背景"）。
   // 画布 height 本身会被 reflow 自动调整，但这两个常量固定不变。
   const venueCanvasRef = useRef<{ width: number; height: number }>({
     width: template.canvasWidth ?? template.width,
     height: template.canvasHeight ?? template.height,
   });
-  const [activeSlotId, setActiveSlotId] = useState<SlotId>("venue");
+  const [activeSlotId, setActiveSlotId] = useState<SlotId>(isVenueMode ? "venue" : "main");
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -588,7 +603,9 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       <div className="flex flex-1 flex-col overflow-hidden rounded-[12px] bg-white/50">
         <EditorTopbar
           activity={activity}
+          isVenueMode={isVenueMode}
           onExtend={() => {
+            if (!isVenueMode) return;
             setSelected(null);
             setExtendModalOpen(true);
           }}
@@ -599,16 +616,18 @@ export function EditorShell({ template, activity }: EditorShellProps) {
           exporting={exporting}
         />
         <div className="flex min-h-0 min-w-0 flex-1">
-          <SlotPanel
-            slots={slots}
-            activeSlotId={activeSlotId}
-            onSelect={handleSelectSlot}
-            onDelete={handleDeleteSlot}
-            tab={leftTab}
-            onTabChange={handleTabChange}
-            selectedVenueComponentId={selectedVenueComponentId}
-            onSelectVenueComponent={handleSelectVenueComponent}
-          />
+          {isVenueMode && (
+            <SlotPanel
+              slots={slots}
+              activeSlotId={activeSlotId}
+              onSelect={handleSelectSlot}
+              onDelete={handleDeleteSlot}
+              tab={leftTab}
+              onTabChange={handleTabChange}
+              selectedVenueComponentId={selectedVenueComponentId}
+              onSelectVenueComponent={handleSelectVenueComponent}
+            />
+          )}
           <CanvasStage
             template={template}
             slot={activeSlot}
@@ -634,7 +653,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onUpdate={updateLayer}
             onReplaceModule={handleReplaceModule}
             onDeleteModule={handleDeleteModule}
-            isVenue={activeSlotId === "venue"}
+            isVenue={isVenueMode && activeSlotId === "venue"}
             canvasBgColor={effVenueBgColor}
             onCanvasBgColorChange={handleCanvasBgColorChange}
             fontFamilies={fontFamilies}
@@ -642,11 +661,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         </div>
       </div>
 
-      <ExtendModal
-        open={extendModalOpen}
-        onClose={() => setExtendModalOpen(false)}
-        onConfirm={handleAddSlots}
-      />
+      {isVenueMode && (
+        <ExtendModal
+          open={extendModalOpen}
+          onClose={() => setExtendModalOpen(false)}
+          onConfirm={handleAddSlots}
+        />
+      )}
 
       <ExportModal
         open={exportModalOpen}

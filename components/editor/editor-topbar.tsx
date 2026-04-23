@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface EditorTopbarProps {
   activity?: string;
+  isVenueMode: boolean;
   onExtend: () => void;
   onDownload: () => void;
   exporting?: boolean;
@@ -12,6 +13,7 @@ interface EditorTopbarProps {
 
 export function EditorTopbar({
   activity,
+  isVenueMode,
   onExtend,
   onDownload,
   exporting = false,
@@ -29,13 +31,15 @@ export function EditorTopbar({
 
       {/* 右侧操作 */}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onExtend}
-          className="h-8 rounded-lg bg-[#E9ECF1] px-3 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
-        >
-          一键拓展
-        </button>
+        {isVenueMode && (
+          <button
+            type="button"
+            onClick={onExtend}
+            className="h-8 rounded-lg bg-[#E9ECF1] px-3 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
+          >
+            一键拓展
+          </button>
+        )}
         <button
           type="button"
           onClick={onDownload}

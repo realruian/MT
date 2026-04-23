@@ -22,10 +22,11 @@ export default async function EditorPage({
   // 卡片四周间距对齐 Figma：上 20 / 右 40 / 下 40 / 左 72（左侧特意留 72 给 SidebarNav）
   // 卡片高度：100vh - 60px(TopBar) - 20px(top) - 40px(bottom) = calc(100vh - 120px)
   if (template.templateType === "psd") {
+    const isVenueMode = template.category === "全套活动";
     return (
       <AppShell>
         <div className="flex h-[calc(100vh-60px)] pl-[72px] pr-10 pt-5 pb-10">
-          <EditorShell template={template} activity={activity} />
+          <EditorShell template={template} activity={activity} isVenueMode={isVenueMode} />
         </div>
       </AppShell>
     );
