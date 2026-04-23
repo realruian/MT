@@ -58,10 +58,12 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       bgColor: "#FFFFFF",
     },
   ]);
-  // venue 画布最小高度 = 模板原始 height；删光所有插入组件时画布不会塌到 0
-  const minVenueHeightRef = useRef<number>(
-    template.canvasHeight ?? template.height,
-  );
+  // venue 模板原始画布尺寸（用于 reflow / recompute 里识别"铺底背景"）。
+  // 画布 height 本身会被 reflow 自动调整，但这两个常量固定不变。
+  const venueCanvasRef = useRef<{ width: number; height: number }>({
+    width: template.canvasWidth ?? template.width,
+    height: template.canvasHeight ?? template.height,
+  });
   const [activeSlotId, setActiveSlotId] = useState<SlotId>("venue");
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -296,21 +298,24 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     const { nextLayers, nextEditState } = reflowVenueComponents(
       layers,
       editState,
+      venueCanvasRef.current.width,
+      venueCanvasRef.current.height,
     );
     if (nextLayers !== layers) setLayers(nextLayers);
     if (nextEditState !== editState) setEditState(nextEditState);
   }, [layers, editState, activeSlot.id]);
 
-  // venue 画布高度的唯一数据源：layers / editState 任一变化都重算，保证
-  // 删组件、改 y/h、隐藏模块等所有路径都能自动收缩 / 增长到"内容 + 48px"。
-  // 最小值是模板原始高度（minVenueHeightRef），防止清空所有插入组件后塌到 0。
-  // 非 venue slot 不同步。reflow 之后 layers 已稳定，这里只读最终位置。
+  // venue 画布高度的唯一数据源：layers / editState 任一变化都重算。画布高度 =
+  // max(venue 原始可见内容底部, 插入组件底部) + 48 padding。原始内容底部排除
+  // 铺底背景（isFullCanvasBackground）；用户隐藏 / 显示 venue 原 layer 时画布
+  // 也会跟着收缩 / 扩大。空状态兜底到 200（极端塌底保护），非 venue slot 不同步。
   useEffect(() => {
     if (activeSlot.id !== "venue") return;
     const nextH = recomputeVenueHeight(
       layers,
       editState,
-      minVenueHeightRef.current,
+      venueCanvasRef.current.width,
+      venueCanvasRef.current.height,
     );
     setSlots((prev) => {
       const venue = prev.find((s) => s.id === "venue");

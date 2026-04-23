@@ -12,6 +12,114 @@ export const VENUE_CONTENT_WIDTH = 702;
 /** 插入组件 content 左边距（venue 宽 - content 宽）/ 2 = 24 */
 export const VENUE_CONTENT_LEFT =
   (VENUE_CANVAS_WIDTH - VENUE_CONTENT_WIDTH) / 2;
+/**
+ * venue 画布极端塌底兜底（px）：所有可见 layer 都被隐藏 / 未加载时画布至少
+ * 保持这个高度，避免视觉上塌到 0 / 过小导致空白列无法点击。
+ */
+const MIN_VENUE_CANVAS_HEIGHT = 200;
+
+/**
+ * 判断一个原始图层是不是"铺满画布 / 延伸到画布外的装饰性背景"。
+ *
+ * 两种常见模式：
+ * 1) 铺底：x≤5 y≤5 + 宽≥0.95 + 高≥0.9 + 面积≥0.85（经典铺满）
+ * 2) 延伸背景：x≤5 + 宽≥0.95 + y+h 溢出画布 ≥1.2 倍（y 可能大于 5，比如
+ *    从 header 底部开始向下延伸的圆角背景色块，高度远超画布本身，设计上
+ *    是"视觉底色"不是"真正内容"）
+ *
+ * 两种 layer 都需要从"原始可见内容底部"计算里排除：否则插入的会场组件会
+ * 被推到它们底部 + 24 开始铺排，中间出现大段与真内容不匹配的空白。
+ *
+ * 阈值留足（0.95 / 0.9 / 0.85 / 1.2）避免误伤主视觉大图——比如 750 宽 422
+ * 高的 hero banner，heightRatio=0.46 overflow=0.46，两个规则都不中。
+ */
+export function isFullCanvasBackground(
+  l: PsdLayer,
+  canvasWidth: number,
+  canvasHeight: number,
+): boolean {
+  if (!canvasWidth || !canvasHeight) return false;
+  const widthRatio = l.width / canvasWidth;
+  const heightRatio = l.height / canvasHeight;
+  const areaRatio = widthRatio * heightRatio;
+  const overflowRatio = (l.y + l.height) / canvasHeight;
+
+  const isFullFill =
+    l.y <= 5 &&
+    l.x <= 5 &&
+    widthRatio >= 0.95 &&
+    heightRatio >= 0.9 &&
+    areaRatio >= 0.85;
+
+  const isExtendingBg =
+    l.x <= 5 && widthRatio >= 0.95 && overflowRatio >= 1.2;
+
+  return isFullFill || isExtendingBg;
+}
+
+/**
+ * 计算 venue 原始内容（非插入组件）当前可见的底部 y+height。
+ *
+ * - 排除：插入组件（instanceId）/ group / hidden（DB 或 editState 标记为
+ *   不可见）/ 铺满画布的背景图
+ * - 空集兜底：若排除铺底后没有可见 layer，回退到"不排除铺底"的 bottom；
+ *   仍空则返回 MIN_VENUE_CANVAS_HEIGHT 给画布一个可视化兜底
+ *
+ * 该值会被 reflow 和 recomputeVenueHeight 同时消费作为"venue 原内容下边界"，
+ * 每次调用都动态算，不缓存 —— 用户隐藏 / 显示 venue 原 layer 时画布能跟着
+ * 收缩 / 扩大。
+ */
+export function computeOriginalContentBottom(
+  layers: PsdLayer[],
+  editState: Record<string, Partial<PsdLayer>>,
+  canvasWidth: number,
+  canvasHeight: number,
+): number {
+  const effBottom = (l: PsdLayer) => {
+    const eff = editState[l.id] ?? {};
+    const y = typeof eff.y === "number" ? eff.y : l.y;
+    const h = typeof eff.height === "number" ? eff.height : l.height;
+    return y + h;
+  };
+  const isVisible = (l: PsdLayer) => {
+    const eff = editState[l.id] ?? {};
+    const v = eff.visible !== undefined ? eff.visible : l.visible;
+    return v === true || String(v) === "true";
+  };
+
+  // 先收集被隐藏的 group id；叶子若父 group 隐藏则级联跳过
+  // （venue 顶层 group 会通过 editState.visible=false 整组隐藏，子叶子 DB
+  // visible 仍是 true，需要在这里手动级联才能正确收缩画布）
+  const hiddenGroupIds = new Set<string>();
+  for (const l of layers) {
+    if (l.layerType !== "group") continue;
+    if (!isVisible(l)) hiddenGroupIds.add(l.id);
+  }
+
+  const originals = layers.filter(
+    (l) =>
+      !l.instanceId &&
+      l.layerType !== "group" &&
+      isVisible(l) &&
+      !(l.parentId && hiddenGroupIds.has(l.parentId)),
+  );
+  const excludingBg = originals.filter(
+    (l) => !isFullCanvasBackground(l, canvasWidth, canvasHeight),
+  );
+  if (excludingBg.length > 0) {
+    return excludingBg.reduce(
+      (m, l) => (effBottom(l) > m ? effBottom(l) : m),
+      0,
+    );
+  }
+  if (originals.length > 0) {
+    return originals.reduce(
+      (m, l) => (effBottom(l) > m ? effBottom(l) : m),
+      0,
+    );
+  }
+  return MIN_VENUE_CANVAS_HEIGHT;
+}
 
 /**
  * 按当前 venue layers + editState 重算画布应占高度。
@@ -46,23 +154,19 @@ export const VENUE_CONTENT_LEFT =
 export function reflowVenueComponents(
   layers: PsdLayer[],
   editState: Record<string, Partial<PsdLayer>>,
+  canvasWidth: number,
+  canvasHeight: number,
 ): {
   nextLayers: PsdLayer[];
   nextEditState: Record<string, Partial<PsdLayer>>;
 } {
-  // 1. venue 原 PSD 图层的底部（eff y+h），reflow 的起点
-  let originalBottom = 0;
-  for (const l of layers) {
-    if (l.sourceComponentId) continue;
-    if (l.layerType === "group") continue;
-    const eff = editState[l.id] ?? {};
-    const effVisible = eff.visible !== undefined ? eff.visible : l.visible;
-    if (!(effVisible === true || String(effVisible) === "true")) continue;
-    const y = typeof eff.y === "number" ? eff.y : l.y;
-    const h = typeof eff.height === "number" ? eff.height : l.height;
-    const b = y + h;
-    if (b > originalBottom) originalBottom = b;
-  }
+  // 1. venue 原 PSD 可见内容的底部（排除铺底背景），reflow 起点
+  const originalBottom = computeOriginalContentBottom(
+    layers,
+    editState,
+    canvasWidth,
+    canvasHeight,
+  );
 
   // 2. 按 instanceId 聚合，记录首次出现下标（= 插入顺序）
   const instanceFirstIdx = new Map<string, number>();
@@ -155,7 +259,8 @@ export function reflowVenueComponents(
 export function recomputeVenueHeight(
   layers: PsdLayer[],
   editState: Record<string, Partial<PsdLayer>>,
-  minHeight: number,
+  canvasWidth: number,
+  canvasHeight: number,
 ): number {
   // 先收集"被 editState 标记为 visible=false 的 group id"
   // （属性面板"删除模块"路径就是打这个标），下方叶子级联跳过
@@ -169,6 +274,7 @@ export function recomputeVenueHeight(
     }
   }
 
+  // 插入组件的 bottom（可见叶子 eff y+h 的最大值）
   let insertedBottom = 0;
   for (const l of layers) {
     if (!l.sourceComponentId) continue;
@@ -183,9 +289,21 @@ export function recomputeVenueHeight(
     const b = y + h;
     if (b > insertedBottom) insertedBottom = b;
   }
-  if (insertedBottom === 0) return minHeight;
-  const next = insertedBottom + CANVAS_BOTTOM_PADDING;
-  return next < minHeight ? minHeight : next;
+
+  // venue 原始内容可见 bottom（排除铺底背景 + 动态算，不缓存）
+  const originalBottom = computeOriginalContentBottom(
+    layers,
+    editState,
+    canvasWidth,
+    canvasHeight,
+  );
+
+  // 画布高度 = max(原始内容底部, 插入组件底部) + 底部 padding；再和极端
+  // 兜底 MIN_VENUE_CANVAS_HEIGHT 取大，防止画布塌到太小
+  const contentBottom =
+    insertedBottom > originalBottom ? insertedBottom : originalBottom;
+  const next = contentBottom + CANVAS_BOTTOM_PADDING;
+  return next < MIN_VENUE_CANVAS_HEIGHT ? MIN_VENUE_CANVAS_HEIGHT : next;
 }
 
 /** 返回 venue 当前 layers 中最底部内容的 y + height（遍历可见叶子）。
