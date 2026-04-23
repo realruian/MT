@@ -4,7 +4,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
 import { VENUE_CANVAS_ID, type Slot } from "./editor-shell";
-import { INSERT_GAP } from "./insert-venue-component";
+import { extractBlocks } from "./venue-blocks";
+
+/** venue block 拖拽中目标 block 的位置信息 */
+interface BlockTarget {
+  blockKey: { kind: "originalGroup" | "instance"; id: string };
+  top: number;
+  bottom: number;
+  centerY: number;
+  height: number;
+}
 
 interface CanvasStageProps {
   template: Template;
@@ -15,10 +24,11 @@ interface CanvasStageProps {
   selection: { moduleId?: string; layerId?: string } | null;
   onSelect: (sel: { moduleId?: string; layerId?: string } | null) => void;
   onUpdate: (id: string, updates: Partial<PsdLayer>) => void;
-  /** venue 实例换位回调：把 instanceId 移到 others 数组的 newIndex 位置 */
-  onReorderInstance?: (instanceId: string, newIndex: number) => void;
-  /** venue 原始可见内容底部 y，用于约束被拖实例不能盖住 venue 原内容；非 venue 传 0 即可 */
-  venueOriginalContentBottom?: number;
+  /** venue block 换位回调：把 blockKey 对应的 block 移到 others 数组中 newIndex 位置 */
+  onReorderBlock?: (
+    blockKey: { kind: "originalGroup" | "instance"; id: string },
+    newIndex: number,
+  ) => void;
 }
 
 export function CanvasStage({
@@ -31,8 +41,7 @@ export function CanvasStage({
   selection,
   onSelect,
   onUpdate,
-  onReorderInstance,
-  venueOriginalContentBottom = 0,
+  onReorderBlock,
 }: CanvasStageProps) {
   // 画布尺寸来自当前 slot —— 一键拓展生成的新 slot 会有不同的 width/height，
   // 图层仍按 PSD 原始坐标渲染，超出画布的部分会被 overflow: hidden 裁掉。
@@ -133,9 +142,9 @@ export function CanvasStage({
   // 拖拽状态：
   // - element：元素级（单个 layer，自由移动）
   // - module：模块级（group + 所有子图层，自由移动 + 吸附对齐）
-  // - venue-instance：venue 组件实例换位模式（只允许 y 方向，松手触发 layers
-  //   数组 splice；拖拽期间只写 transient state，不写 editState，这样 reflow
-  //   useEffect 不会被中间帧触发）
+  // - venue-block：venue block 换位模式（originalGroup 或 instance，只允许 y
+  //   方向，松手触发 layers 数组 splice；拖拽期间只写 transient state，不写
+  //   editState，这样 reflow useEffect 不会被中间帧触发）
   type DragState =
     | {
         mode: "element";
@@ -154,21 +163,16 @@ export function CanvasStage({
         startPositions: Map<string, { x: number; y: number }>;
       }
     | {
-        mode: "venue-instance";
-        instanceId: string;
+        mode: "venue-block";
+        blockKey: { kind: "originalGroup" | "instance"; id: string };
         startMouseY: number;
-        /** 被拖实例起始最小 y（顶部） */
+        /** 被拖 block 起始最小 y（顶部） */
         startMinY: number;
-        /** 被拖实例 bbox 高度 = max(y+h) - min(y) */
-        instanceHeight: number;
-        /** 其他实例在 dragstart 时的 top / bottom / centerY（不变，不含自己） */
-        others: Array<{
-          instanceId: string;
-          top: number;
-          bottom: number;
-          centerY: number;
-        }>;
-        /** 被拖实例当前顶部的最小允许值（= 原始 venue 内容底部 + INSERT_GAP） */
+        /** 被拖 block bbox 高度 = max(y+h) - min(y) */
+        blockHeight: number;
+        /** 其他 block 在 dragstart 时的位置信息（排除被拖 block） */
+        others: BlockTarget[];
+        /** 被拖 block 顶部最小允许值（TOP_PADDING = 24） */
         minTop: number;
       };
   const [dragging, setDragging] = useState<DragState | null>(null);
@@ -176,25 +180,22 @@ export function CanvasStage({
   const [snapGuides, setSnapGuides] = useState<SnapGuide[]>([]);
 
   /**
-   * venue 实例换位的 transient 状态：只在 mode="venue-instance" 拖拽期间有值。
-   * - dy：被拖实例相对起始位置的垂直偏移，用于渲染时给对应 layer 叠加平移
-   * - dropIndex：松手后实例将插入到 others 数组中的下标（用于画 drop indicator）
-   * 不写到 editState 是刻意的：写了会触发 reflow useEffect 立刻把实例弹回 y，
-   * 同时污染 undo 栈。换位结束由 onReorderInstance 重排 layers 数组完成。
+   * venue block 换位的 transient 状态：只在 mode="venue-block" 拖拽期间有值。
+   * - dy：被拖 block 相对起始位置的垂直偏移，用于渲染时叠加平移
+   * - dropIndex：松手后 block 将插入到 others 数组中的下标
+   * 不写到 editState 是刻意的：写了会触发 reflow useEffect 立刻把 block 弹回 y，
+   * 同时污染 undo 栈。换位结束由 onReorderBlock 重排 layers 数组完成。
    */
-  const [instanceDrag, setInstanceDrag] = useState<{
-    instanceId: string;
+  const [blockDrag, setBlockDrag] = useState<{
+    blockKey: { kind: "originalGroup" | "instance"; id: string };
     dy: number;
     dropIndex: number;
     dropIndicatorY: number;
   } | null>(null);
-  // 镜像 instanceDrag 到 ref，供 useEffect 里的 onMove / onUp 读最新值。
-  // 不把 instanceDrag 写进 useEffect deps 是因为 onMove 每帧都 set 它，
-  // 那样会导致 handler 每帧解绑重绑。
-  const instanceDragRef = useRef(instanceDrag);
+  const blockDragRef = useRef(blockDrag);
   useEffect(() => {
-    instanceDragRef.current = instanceDrag;
-  }, [instanceDrag]);
+    blockDragRef.current = blockDrag;
+  }, [blockDrag]);
 
   useEffect(() => {
     if (!dragging) return;
@@ -238,40 +239,48 @@ export function CanvasStage({
     };
 
     const onMove = (e: MouseEvent) => {
-      if (dragging.mode === "venue-instance") {
-        // y 方向平移；x 锁定 —— 实例位置由 reflow 决定（24, 水平居中）
+      if (dragging.mode === "venue-block") {
+        // y 方向平移；x 锁定 —— block 位置由 reflow 决定
         const rawDy = (e.clientY - dragging.startMouseY) / scale;
-        // 最低位置：实例顶部不能越过 venue 原始内容底部 + gap
         const minDy = dragging.minTop - dragging.startMinY;
         const dy = rawDy < minDy ? minDy : rawDy;
+
         const draggedCenterY =
-          dragging.startMinY + dy + dragging.instanceHeight / 2;
-        // 计算 dropIndex：被拖实例中心越过哪个其他实例的中点，就插到它之前
+          dragging.startMinY + dy + dragging.blockHeight / 2;
+        const draggedOriginCenterY =
+          dragging.startMinY + dragging.blockHeight / 2;
+        const movingDown = draggedCenterY > draggedOriginCenterY;
+
+        // 带 hysteresis 的 dropIndex：向下拖越过目标 75%，向上拖越过目标 25%
         let dropIndex = dragging.others.length;
         for (let i = 0; i < dragging.others.length; i++) {
-          if (draggedCenterY < dragging.others[i].centerY) {
+          const o = dragging.others[i];
+          const threshold = movingDown
+            ? o.centerY + o.height * 0.25
+            : o.centerY - o.height * 0.25;
+          if (draggedCenterY < threshold) {
             dropIndex = i;
             break;
           }
         }
-        // drop indicator 的 y 位置：尽量画在"缝隙中心"，端点情况贴边
+
+        // drop indicator y：缝隙中心；端点情况贴边
         let dropIndicatorY: number;
         if (dragging.others.length === 0) {
-          dropIndicatorY = dragging.minTop - INSERT_GAP / 2;
+          dropIndicatorY = dragging.minTop - 12;
         } else if (dropIndex === 0) {
-          dropIndicatorY =
-            (dragging.minTop + dragging.others[0].top) / 2;
+          dropIndicatorY = (dragging.minTop + dragging.others[0].top) / 2;
         } else if (dropIndex === dragging.others.length) {
-          dropIndicatorY =
-            dragging.others[dropIndex - 1].bottom + INSERT_GAP / 2;
+          dropIndicatorY = dragging.others[dropIndex - 1].bottom + 12;
         } else {
           dropIndicatorY =
             (dragging.others[dropIndex - 1].bottom +
               dragging.others[dropIndex].top) /
             2;
         }
-        setInstanceDrag({
-          instanceId: dragging.instanceId,
+
+        setBlockDrag({
+          blockKey: dragging.blockKey,
           dy,
           dropIndex,
           dropIndicatorY,
@@ -341,36 +350,51 @@ export function CanvasStage({
       }
     };
     const onUp = () => {
-      if (dragging.mode === "venue-instance") {
-        const preview = instanceDragRef.current;
+      if (dragging.mode === "venue-block") {
+        const preview = blockDragRef.current;
         setDragging(null);
         setSnapGuides([]);
-        setInstanceDrag(null);
+        setBlockDrag(null);
         if (!preview) return;
-        // 微小幅度视为无操作，保留原位（transient state 已清空 → 视觉弹回）
+        // 微小幅度视为无操作，transient state 已清空 → 视觉弹回
         if (Math.abs(preview.dy) < 10) return;
 
-        // 判断换位后顺序是否真的变化：先按 layers 首次出现顺序取出所有实例
-        // 列表 allOrder，然后 splice 后对比。没变化就不通知 shell，避免
-        // reorderInstanceInLayers 触发 setLayers → reflow 的空转一圈
-        const allOrder: string[] = [];
-        const seen = new Set<string>();
-        for (const l of layers) {
-          if (!l.instanceId || seen.has(l.instanceId)) continue;
-          seen.add(l.instanceId);
-          allOrder.push(l.instanceId);
-        }
-        const otherIds = allOrder.filter((id) => id !== dragging.instanceId);
-        const reordered = [
-          ...otherIds.slice(0, preview.dropIndex),
-          dragging.instanceId,
-          ...otherIds.slice(preview.dropIndex),
+        // 判断换位后顺序是否真的变化：先按 layers 首次出现顺序取出所有 block，
+        // splice 后对比；没变化就不通知 shell，避免空转一圈
+        const blocks = extractBlocks(layers, cw, ch);
+        const reorderable = blocks
+          .filter(
+            (b): b is Extract<(typeof blocks)[number], { kind: "originalGroup" | "instance" }> =>
+              b.kind !== "loose",
+          )
+          .sort((a, b) => a.sortKey - b.sortKey);
+
+        const bk = dragging.blockKey;
+        const draggedIdx = reorderable.findIndex(
+          (b) =>
+            b.kind === bk.kind &&
+            (b.kind === "originalGroup" ? b.groupId === bk.id : b.instanceId === bk.id),
+        );
+        if (draggedIdx === -1) return;
+
+        const otherOrder = reorderable.filter((_, i) => i !== draggedIdx);
+        const newOrder = [
+          ...otherOrder.slice(0, preview.dropIndex),
+          reorderable[draggedIdx],
+          ...otherOrder.slice(preview.dropIndex),
         ];
+        const allOrder = reorderable;
         const unchanged =
-          reordered.length === allOrder.length &&
-          reordered.every((id, i) => id === allOrder[i]);
+          newOrder.length === allOrder.length &&
+          newOrder.every((b, i) => {
+            const a = allOrder[i];
+            if (b.kind !== a.kind) return false;
+            return b.kind === "originalGroup"
+              ? b.groupId === (a as typeof b).groupId
+              : b.instanceId === (a as Extract<typeof b, { kind: "instance" }>).instanceId;
+          });
         if (unchanged) return;
-        onReorderInstance?.(dragging.instanceId, preview.dropIndex);
+        onReorderBlock?.(dragging.blockKey, preview.dropIndex);
         return;
       }
       setDragging(null);
@@ -383,7 +407,7 @@ export function CanvasStage({
       window.removeEventListener("mouseup", onUp);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dragging, scale, onUpdate, layers, cw, ch, groupVisibility, onReorderInstance]);
+  }, [dragging, scale, onUpdate, layers, cw, ch, groupVisibility, onReorderBlock]);
 
   const handleMouseDown = (e: React.MouseEvent, layer: PsdLayer) => {
     // 编辑态下不触发拖拽（让 textarea 自己处理鼠标）
@@ -415,73 +439,112 @@ export function CanvasStage({
       const group = layers.find((l) => l.id === layer.parentId);
       if (!group) return;
 
-      // venue 实例换位模式：在 venue slot 下、group 有 instanceId 时启用。
-      // 不走 editState.y 自由平移，而是缓存 "others" 的 y 信息 + 其他实例
-      // 位置在拖拽期间保持静止，松手后调 onReorderInstance 重排 layers 数组
-      if (
-        slot.id === "venue" &&
-        group.instanceId &&
-        onReorderInstance
-      ) {
-        const draggedInstanceId = group.instanceId;
-        // 收集被拖实例的 y 范围（含 group + 所有子层，按 eff 值）
-        const instLayers = layers.filter(
-          (l) => l.instanceId === draggedInstanceId,
-        );
-        let minY = Infinity;
-        let maxBottom = -Infinity;
-        for (const l of instLayers) {
-          const ly = getVal(l, "y") as number;
-          const lh = getVal(l, "height") as number;
-          if (ly < minY) minY = ly;
-          if (ly + lh > maxBottom) maxBottom = ly + lh;
-        }
-        if (!isFinite(minY)) return;
+      // venue block 换位模式：在 venue slot 下、该 group 是 originalGroup 或 instance 时启用。
+      // 不走 editState.y 自由平移，而是缓存 "others" 的 y 信息，松手后调
+      // onReorderBlock 重排 layers 数组
+      if (slot.id === "venue" && onReorderBlock) {
+        const isInstance = !!group.instanceId;
+        const isOriginalGroup =
+          group.layerType === "group" &&
+          group.parentId == null &&
+          !group.instanceId;
 
-        // 其他实例：按首次出现顺序聚合，存每组的 top / bottom / centerY（排
-        // 除 group 本身的 y，只看叶子；group 的 y 在 reflow 后跟子层同步，
-        // 这里用子层 bbox 更稳）
-        const othersMap = new Map<
-          string,
-          { firstIdx: number; minY: number; maxBottom: number }
-        >();
-        for (let i = 0; i < layers.length; i++) {
-          const l = layers[i];
-          if (!l.instanceId || l.instanceId === draggedInstanceId) continue;
-          if (l.layerType === "group") continue;
-          const ly = getVal(l, "y") as number;
-          const lh = getVal(l, "height") as number;
-          const existing = othersMap.get(l.instanceId);
-          if (!existing) {
-            othersMap.set(l.instanceId, {
-              firstIdx: i,
-              minY: ly,
-              maxBottom: ly + lh,
-            });
+        if (isInstance || isOriginalGroup) {
+          const blockKey: { kind: "originalGroup" | "instance"; id: string } =
+            isInstance
+              ? { kind: "instance", id: group.instanceId! }
+              : { kind: "originalGroup", id: group.id };
+
+          // 收集被拖 block 的 y 范围（仅叶子，eff 值）
+          const allBlocks = extractBlocks(layers, cw, ch);
+          const draggedBlock = allBlocks.find(
+            (b) =>
+              b.kind === blockKey.kind &&
+              (b.kind === "originalGroup"
+                ? b.groupId === blockKey.id
+                : b.instanceId === blockKey.id),
+          );
+          if (!draggedBlock) {
+            // fallback to module drag
           } else {
-            if (ly < existing.minY) existing.minY = ly;
-            if (ly + lh > existing.maxBottom) existing.maxBottom = ly + lh;
+            const draggedLeaves = draggedBlock.layers.filter(
+              (l) => l.layerType !== "group",
+            );
+            if (draggedLeaves.length === 0) {
+              // empty block, skip
+            } else {
+              let minY = Infinity;
+              let maxBottom = -Infinity;
+              for (const l of draggedLeaves) {
+                const ly = getVal(l, "y") as number;
+                const lh = getVal(l, "height") as number;
+                if (ly < minY) minY = ly;
+                if (ly + lh > maxBottom) maxBottom = ly + lh;
+              }
+
+              // 其他可拖拽 block 按 sortKey 排序，计算各自的 top/bottom/centerY
+              const reorderable = allBlocks
+                .filter(
+                  (b): b is Extract<
+                    (typeof allBlocks)[number],
+                    { kind: "originalGroup" | "instance" }
+                  > => b.kind !== "loose",
+                )
+                .sort((a, b) => a.sortKey - b.sortKey);
+
+              const others: BlockTarget[] = reorderable
+                .filter(
+                  (b) =>
+                    !(
+                      b.kind === blockKey.kind &&
+                      (b.kind === "originalGroup"
+                        ? b.groupId === blockKey.id
+                        : b.instanceId === blockKey.id)
+                    ),
+                )
+                .map((b) => {
+                  const leaves = b.layers.filter(
+                    (l) => l.layerType !== "group",
+                  );
+                  const top = leaves.reduce(
+                    (m, l) => Math.min(m, getVal(l, "y") as number),
+                    Infinity,
+                  );
+                  const bottom = leaves.reduce(
+                    (m, l) =>
+                      Math.max(
+                        m,
+                        (getVal(l, "y") as number) +
+                          (getVal(l, "height") as number),
+                      ),
+                    0,
+                  );
+                  const bk: { kind: "originalGroup" | "instance"; id: string } =
+                    b.kind === "originalGroup"
+                      ? { kind: "originalGroup", id: b.groupId }
+                      : { kind: "instance", id: b.instanceId };
+                  return {
+                    blockKey: bk,
+                    top: isFinite(top) ? top : 0,
+                    bottom,
+                    centerY: isFinite(top) ? (top + bottom) / 2 : 0,
+                    height: isFinite(top) ? bottom - top : 0,
+                  };
+                });
+
+              setDragging({
+                mode: "venue-block",
+                blockKey,
+                startMouseY: e.clientY,
+                startMinY: minY,
+                blockHeight: maxBottom - minY,
+                others,
+                minTop: 24, // TOP_PADDING (D4)
+              });
+              return;
+            }
           }
         }
-        const others = [...othersMap.entries()]
-          .sort((a, b) => a[1].firstIdx - b[1].firstIdx)
-          .map(([instanceId, v]) => ({
-            instanceId,
-            top: v.minY,
-            bottom: v.maxBottom,
-            centerY: (v.minY + v.maxBottom) / 2,
-          }));
-
-        setDragging({
-          mode: "venue-instance",
-          instanceId: draggedInstanceId,
-          startMouseY: e.clientY,
-          startMinY: minY,
-          instanceHeight: maxBottom - minY,
-          others,
-          minTop: venueOriginalContentBottom + INSERT_GAP,
-        });
-        return;
       }
 
       const startPositions = new Map<string, { x: number; y: number }>();
@@ -562,19 +625,25 @@ export function CanvasStage({
               if (!visible) return null;
 
               const x = getVal(layer, "x");
-              // venue 实例换位拖拽：被拖实例的 layer 渲染时叠加 transient dy
+              // venue block 换位拖拽：被拖 block 的 layer 渲染时叠加 transient dy
               // 并把 opacity 打 0.7 折——属于 transient 视觉态，不写 editState
-              const isInstanceBeingDragged =
-                instanceDrag != null &&
-                layer.instanceId === instanceDrag.instanceId;
+              const isBlockBeingDragged =
+                blockDrag != null &&
+                blockDrag.blockKey.kind === "instance" &&
+                layer.instanceId === blockDrag.blockKey.id
+                  ? true
+                  : blockDrag != null &&
+                    blockDrag.blockKey.kind === "originalGroup" &&
+                    (layer.parentId === blockDrag.blockKey.id ||
+                      layer.id === blockDrag.blockKey.id);
               const baseY = getVal(layer, "y") as number;
-              const y = isInstanceBeingDragged
-                ? baseY + instanceDrag.dy
+              const y = isBlockBeingDragged
+                ? baseY + blockDrag!.dy
                 : baseY;
               const w = getVal(layer, "width");
               const h = getVal(layer, "height");
               const baseOpacity = getVal(layer, "opacity") as number;
-              const opacity = isInstanceBeingDragged
+              const opacity = isBlockBeingDragged
                 ? baseOpacity * 0.7
                 : baseOpacity;
               const rot = getVal(layer, "rotation") ?? 0;
@@ -718,15 +787,15 @@ export function CanvasStage({
               return null;
             })}
 
-            {/* venue 实例拖拽换位：drop indicator 2px 蓝色横线，贴 venue
+            {/* venue block 拖拽换位：drop indicator 2px 蓝色横线，贴 venue
                 组件水平区间（24 ~ cw-24），提示松手后插入位置 */}
-            {instanceDrag && (
+            {blockDrag && (
               <div
                 style={{
                   position: "absolute",
                   left: 24,
                   right: 24,
-                  top: instanceDrag.dropIndicatorY - 1,
+                  top: blockDrag.dropIndicatorY - 1,
                   height: 2,
                   background: "#3B82F6",
                   borderRadius: 1,
