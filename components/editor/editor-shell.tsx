@@ -16,12 +16,10 @@ import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
 import type { VenueComponent } from "./venue-components";
 import {
-  computeOriginalContentBottom,
   insertComponentIntoLayers,
-  recomputeVenueHeight,
-  reflowVenueComponents,
-  reorderInstanceInLayers,
 } from "./insert-venue-component";
+import { reorderBlockInLayers } from "./venue-blocks";
+import { reflowVenueBlocks } from "./venue-reflow";
 
 export type SlotId = string;
 
@@ -93,9 +91,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   const [layers, setLayers] = useState<PsdLayer[]>([]);
   const [loadingLayers, setLoadingLayers] = useState(true);
   const [editState, setEditState] = useState<Record<string, Partial<PsdLayer>>>({});
-  // venue 画布上"来自会场组件库"的插入图层（纯前端 session 状态，刷新丢失）。
-  // 用 ref 持久化，以便切去别的 slot 再切回 venue 时能把这批图层重新拼回
-  // useEffect 拉到的 venue 原始 layers 末尾，不被 re-fetch 冲掉。
+  // venue 画布当前完整 layers 快照（D7）：切去别的 slot 再切回 venue 时优先
+  // 读 ref，fallback fetch API；保证 originalGroup 手动换位顺序也不丢失。
   const venueInsertedLayersRef = useRef<PsdLayer[]>([]);
 
   const updateLayer = useCallback(
@@ -197,7 +194,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         if (!res.ok) return;
         const data: PsdLayer[] = await res.json();
         if (cancelled) return;
-        setLayers(isVenue ? [...data, ...venueInsertedLayersRef.current] : data);
+        // D7 全快照：有保存的 venue 快照时直接还原（含 originalGroup 换位顺序）；
+        // 否则用 API 返回的原始 layers（ref 为空 = 首次加载）
+        if (isVenue && venueInsertedLayersRef.current.length > 0) {
+          setLayers(venueInsertedLayersRef.current);
+        } else {
+          setLayers(data);
+        }
       } catch (err) {
         console.error("Failed to load layers:", err);
       } finally {
@@ -298,12 +301,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       venueSlot.templateId,
     );
 
-    // 只保留本次插入的新增那一段，追加到 ref（切走 / 切回 venue 都能拼回）
-    const insertedSlice = nextLayers.slice(layers.length);
-    venueInsertedLayersRef.current = [
-      ...venueInsertedLayersRef.current,
-      ...insertedSlice,
-    ];
+    // 全快照（D7）：记录插入后的完整 venue layers，切走切回都能还原
+    venueInsertedLayersRef.current = nextLayers;
     setLayers(nextLayers);
 
     // 选中新组件根：经 ensureRootGroup 规范化后根永远是 group，走模块选中；
@@ -324,12 +323,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     );
   }
 
-  // venue 插入组件的垂直自动布局：layers/editState 变化时先对所有实例做
-  // reflow（按 instanceId 聚合、按插入顺序自上而下铺排），删除中间组件后
-  // 下方组件自动上移填空。reflow 不改的情况下返回原引用 → 短路避免循环。
+  // venue 画布全量 autolayout reflow：layers/editState 变化时对所有 block
+  // (originalGroup + instance) 从 TOP_PADDING=24 起自上而下铺排，删除/隐藏
+  // block 后下方内容自动上移填空。reflow 不改的情况下返回原引用 → 短路避免循环。
+  // 同时从 nextHeight 取出新画布高度，一次 effect 同步搞定 reflow + height。
   useEffect(() => {
     if (activeSlot.id !== "venue") return;
-    const { nextLayers, nextEditState } = reflowVenueComponents(
+    const { nextLayers, nextEditState, nextHeight } = reflowVenueBlocks(
       layers,
       editState,
       venueCanvasRef.current.width,
@@ -337,59 +337,28 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     );
     if (nextLayers !== layers) setLayers(nextLayers);
     if (nextEditState !== editState) setEditState(nextEditState);
-  }, [layers, editState, activeSlot.id]);
-
-  // venue 画布高度的唯一数据源：layers / editState 任一变化都重算。画布高度 =
-  // max(venue 原始可见内容底部, 插入组件底部) + 48 padding。原始内容底部排除
-  // 铺底背景（isFullCanvasBackground）；用户隐藏 / 显示 venue 原 layer 时画布
-  // 也会跟着收缩 / 扩大。空状态兜底到 200（极端塌底保护），非 venue slot 不同步。
-  useEffect(() => {
-    if (activeSlot.id !== "venue") return;
-    const nextH = recomputeVenueHeight(
-      layers,
-      editState,
-      venueCanvasRef.current.width,
-      venueCanvasRef.current.height,
-    );
     setSlots((prev) => {
       const venue = prev.find((s) => s.id === "venue");
-      if (!venue || venue.height === nextH) return prev;
-      return prev.map((s) =>
-        s.id === "venue" ? { ...s, height: nextH } : s,
-      );
+      if (!venue || venue.height === nextHeight) return prev;
+      return prev.map((s) => (s.id === "venue" ? { ...s, height: nextHeight } : s));
     });
   }, [layers, editState, activeSlot.id]);
 
-  // venue 组件拖拽换位：把被拖实例在 layers 里的 instanceId 分组整体 splice
-  // 到 newIndex 位置，reflow useEffect 自动基于新数组顺序重算所有 y。
-  // - newIndex 与当前下标相同时 reorderInstanceInLayers 仍返回新引用，但
-  //   reflow 里会短路返回原 layers，不触发无谓 setState
-  // - 同步 venueInsertedLayersRef，保证切走 / 切回 venue 后顺序不回退
-  const handleReorderInstance = useCallback(
-    (instanceId: string, newIndex: number) => {
+  // venue 组件拖拽换位：把被拖 block 在 layers 里整体 splice 到 newIndex 位置，
+  // reflow useEffect 自动基于新数组顺序重算所有 y。
+  // - 同步 venueInsertedLayersRef 全快照（D7），切走 / 切回 venue 后顺序不回退
+  const handleReorderBlock = useCallback(
+    (blockKey: { kind: "originalGroup" | "instance"; id: string }, newIndex: number) => {
       if (activeSlot.id !== "venue") return;
       setLayers((prev) => {
-        const next = reorderInstanceInLayers(prev, instanceId, newIndex);
-        venueInsertedLayersRef.current = next.filter(
-          (l) => l.sourceComponentId != null,
-        );
+        const next = reorderBlockInLayers(prev, blockKey, newIndex);
+        venueInsertedLayersRef.current = next;
         return next;
       });
     },
     [activeSlot.id],
   );
 
-  // venue 原始内容底部：canvas-stage 在 venue 实例拖拽换位时用它约束最小 y
-  // （被拖实例不能被拖到盖住 venue 原 PSD 可见内容）
-  const venueOriginalContentBottom =
-    activeSlot.id === "venue"
-      ? computeOriginalContentBottom(
-          layers,
-          editState,
-          venueCanvasRef.current.width,
-          venueCanvasRef.current.height,
-        )
-      : 0;
 
   // beforeunload 提示：venue 当前 layers 含任一"来自组件库的图层"时挂载原生
   // 离开确认（浏览器只显示默认文案，无法自定义），提醒用户刷新会丢失插入
@@ -594,8 +563,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             selection={selected}
             onSelect={setSelected}
             onUpdate={updateLayer}
-            onReorderInstance={handleReorderInstance}
-            venueOriginalContentBottom={venueOriginalContentBottom}
+            onReorderBlock={handleReorderBlock}
           />
           <PropertyPanel
             template={template}
