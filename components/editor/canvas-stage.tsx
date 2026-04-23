@@ -777,13 +777,15 @@ export function CanvasStage({
                       onMouseDown={(e) => handleMouseDown(e, layer)}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
-                        // 顶层孤立文本不支持双击编辑（与现有选择规则一致）
-                        if (!layer.parentId) return;
                         initialTextRef.current = text;
                         draftTextRef.current = text;
                         setDraftText(text);
                         setEditingId(layer.id);
-                        onSelect({ moduleId: layer.parentId, layerId: layer.id });
+                        if (layer.parentId) {
+                          onSelect({ moduleId: layer.parentId, layerId: layer.id });
+                        } else {
+                          onSelect({ layerId: layer.id });
+                        }
                       }}
                       style={{
                         ...baseStyle,
