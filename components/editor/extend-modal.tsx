@@ -86,10 +86,23 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                 className="h-[74px] rounded-[10px] bg-[#F4F6F8] px-4 py-3"
               >
                 <div className="flex items-start justify-between gap-4">
-                  {/* 左：组名 + 尺寸 items */}
+                  {/* 左：组名 + 渠道标签 + 尺寸 items */}
                   <div className="min-w-0 flex-1">
-                    <div className="text-[14px] font-normal text-[#11192D]">
-                      {preset.name}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[14px] font-normal text-[#11192D]">
+                        {preset.name}
+                      </span>
+                      {/* 渠道标签：外卖走品牌黄底 / 团侧走冷灰底，帮助产运快速区分归属 */}
+                      <span
+                        className={[
+                          "inline-flex h-[18px] items-center rounded-[4px] px-1.5 text-[11px] leading-none",
+                          preset.channel === "外卖"
+                            ? "bg-[#FFECB3] text-[#8A6100]"
+                            : "bg-[#E4E7EC] text-[#4F607A]",
+                        ].join(" ")}
+                      >
+                        {preset.channel}
+                      </span>
                     </div>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
                       {preset.sizes.map((size) => {
