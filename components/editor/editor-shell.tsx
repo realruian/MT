@@ -108,6 +108,14 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   // 读 ref，fallback fetch API；保证 originalGroup 手动换位顺序也不丢失。
   const venueInsertedLayersRef = useRef<PsdLayer[]>([]);
 
+  // layers 镜像 ref：供双 rAF 回调读取 reflow 后的最新 y 坐标
+  const layersRef = useRef<PsdLayer[]>([]);
+  useEffect(() => { layersRef.current = layers; }, [layers]);
+
+  // canvas-stage 暴露：滚动容器 + 当前 scale（用于插入组件后自动定位）
+  const canvasScrollRef = useRef<HTMLDivElement | null>(null);
+  const canvasScaleRef = useRef<number>(0.5);
+
   const updateLayer = useCallback(
     (id: string, updates: Partial<PsdLayer>) => {
       setEditState((prev) => ({
@@ -334,6 +342,26 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       } else {
         setSelected({ layerId: rootLayerId });
       }
+
+      // 双 rAF：等第一帧 setLayers 提交后，再等一帧让 reflow useEffect 跑完，
+      // 读取 reflow 后的 y 位置并平滑滚动到新组件居中显示
+      const capturedId = rootLayerId;
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const newLayer = layersRef.current.find((l) => l.id === capturedId);
+          if (!newLayer || !canvasScrollRef.current) return;
+          const s = canvasScaleRef.current;
+          // py-10 = 40px 是 venue 滚动容器内层 wrapper 的顶部 padding
+          const PY_10 = 40;
+          const targetY = PY_10 + newLayer.y * s;
+          const containerH = canvasScrollRef.current.clientHeight;
+          const scrollTop = targetY - containerH / 2 + (newLayer.height * s) / 2;
+          canvasScrollRef.current.scrollTo({
+            top: Math.max(0, scrollTop),
+            behavior: "smooth",
+          });
+        });
+      });
     }
     console.log(
       "[VenueComponentCard] inserted:",
@@ -585,6 +613,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onSelect={setSelected}
             onUpdate={updateLayer}
             onReorderBlock={handleReorderBlock}
+            scrollRef={canvasScrollRef}
+            scaleRef={canvasScaleRef}
           />
           <PropertyPanel
             template={template}

@@ -29,6 +29,10 @@ interface CanvasStageProps {
     blockKey: { kind: "originalGroup" | "instance"; id: string },
     newIndex: number,
   ) => void;
+  /** editor-shell 持有：绑定 venue 滚动容器，供插入组件后自动定位 */
+  scrollRef?: React.MutableRefObject<HTMLDivElement | null>;
+  /** editor-shell 持有：实时同步当前 scale，供坐标转换 */
+  scaleRef?: React.MutableRefObject<number>;
 }
 
 export function CanvasStage({
@@ -42,6 +46,8 @@ export function CanvasStage({
   onSelect,
   onUpdate,
   onReorderBlock,
+  scrollRef,
+  scaleRef,
 }: CanvasStageProps) {
   // 画布尺寸来自当前 slot —— 一键拓展生成的新 slot 会有不同的 width/height，
   // 图层仍按 PSD 原始坐标渲染，超出画布的部分会被 overflow: hidden 裁掉。
@@ -84,6 +90,11 @@ export function CanvasStage({
   useEffect(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [slot.id]);
+
+  // 把当前 scale 同步给 scaleRef（editor-shell 插入组件后坐标换算用）
+  useEffect(() => {
+    if (scaleRef) scaleRef.current = scale;
+  }, [scale, scaleRef]);
 
   // 读取图层字段的"有效值"：优先 editState 覆盖，否则回落到 DB 原值
   function getVal<K extends keyof PsdLayer>(layer: PsdLayer, key: K): PsdLayer[K] {
@@ -608,7 +619,10 @@ export function CanvasStage({
 
       {/* venue：垂直滚动容器；其他 slot：overflow-hidden + flex 完整居中 */}
       <div
-        ref={scrollContainerRef}
+        ref={(el) => {
+          (scrollContainerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+          if (scrollRef) scrollRef.current = el;
+        }}
         onClick={() => onSelect(null)}
         className={[
           "absolute inset-0",
