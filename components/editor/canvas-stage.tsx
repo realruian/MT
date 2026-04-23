@@ -57,7 +57,7 @@ export function CanvasStage({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
 
-  // 按宽度适配缩放：只用 viewport 宽度算 scale，高度不参与（高度超出时垂直滚动）。
+  // venue：仅按宽度适配（高度超出垂直滚动）；其他 slot：按宽高都适配（完整显示）。
   // MAX_SCALE = 1 防止小画布被放大模糊；FIT_PADDING 两侧各留 40px 呼吸空间。
   const FIT_PADDING = 40;
   const MAX_SCALE = 1.0;
@@ -65,14 +65,20 @@ export function CanvasStage({
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container || !cw) return;
+    const isVenue = slot.id === "venue";
     const observer = new ResizeObserver(([entry]) => {
       const availW = entry.contentRect.width - FIT_PADDING * 2;
-      const s = Math.min(availW / cw, MAX_SCALE);
+      const availH = entry.contentRect.height - FIT_PADDING * 2;
+      const fitWidth = availW / cw;
+      const fitHeight = availH / ch;
+      const s = isVenue
+        ? Math.min(fitWidth, MAX_SCALE)              // venue：宽度适配，高度不参与
+        : Math.min(fitWidth, fitHeight, MAX_SCALE);  // 其他：宽高都约束，完整适配
       setScale(Math.max(0.1, s));
     });
     observer.observe(container);
     return () => observer.disconnect();
-  }, [cw]);
+  }, [cw, ch, slot.id]);
 
   // 切换 slot 时滚动回顶部，不保留上一个 slot 的滚动位置
   useEffect(() => {
@@ -294,14 +300,16 @@ export function CanvasStage({
           dropIndicatorY,
         });
 
-        // 拖拽边缘自动滚动：cursor 距 viewport 顶/底 < 80px 时触发
-        const scrollEl = scrollContainerRef.current;
-        if (scrollEl) {
-          const rect = scrollEl.getBoundingClientRect();
-          const distFromTop = e.clientY - rect.top;
-          const distFromBottom = rect.bottom - e.clientY;
-          if (distFromTop < 80) scrollEl.scrollBy({ top: -10 });
-          else if (distFromBottom < 80) scrollEl.scrollBy({ top: 10 });
+        // 拖拽边缘自动滚动：仅 venue（有滚动条）时触发；cursor 距 viewport 顶/底 < 80px 时滚动
+        if (slot.id === "venue") {
+          const scrollEl = scrollContainerRef.current;
+          if (scrollEl) {
+            const rect = scrollEl.getBoundingClientRect();
+            const distFromTop = e.clientY - rect.top;
+            const distFromBottom = rect.bottom - e.clientY;
+            if (distFromTop < 80) scrollEl.scrollBy({ top: -10 });
+            else if (distFromBottom < 80) scrollEl.scrollBy({ top: 10 });
+          }
         }
         return;
       }
@@ -598,28 +606,33 @@ export function CanvasStage({
         </div>
       )}
 
-      {/* 滚动容器：高度超出时垂直滚动，隐藏滚动条 */}
+      {/* venue：垂直滚动容器；其他 slot：overflow-hidden + flex 完整居中 */}
       <div
         ref={scrollContainerRef}
         onClick={() => onSelect(null)}
-        className="absolute inset-0 overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+        className={[
+          "absolute inset-0",
+          slot.id === "venue"
+            ? "overflow-y-auto overflow-x-hidden [&::-webkit-scrollbar]:hidden [scrollbar-width:none]"
+            : "overflow-hidden flex items-center justify-center",
+        ].join(" ")}
       >
-        {/* Flex 水平居中 + 上下留白；min-h-full 保证短内容也能居中 */}
-        <div className="flex justify-center py-10 min-h-full">
-          {/* 画布块：不再绝对定位，由 flexbox 居中 */}
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "relative",
-              width: cw * scale,
-              height: ch * scale,
-              flexShrink: 0,
-              boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-              background: effBgColor,
-              overflow: "clip",
-              contain: "strict",
-            }}
-          >
+      {/* venue：flex 居中 + 上下呼吸空间；其他 slot：display:contents 透传给外层 flex */}
+      <div className={slot.id === "venue" ? "flex justify-center py-10 min-h-full" : "contents"}>
+        {/* 画布块：不再绝对定位，由 flexbox 居中 */}
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            position: "relative",
+            width: cw * scale,
+            height: ch * scale,
+            flexShrink: 0,
+            boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
+            background: effBgColor,
+            overflow: "clip",
+            contain: "strict",
+          }}
+        >
             <div
               style={{
                 position: "absolute",
