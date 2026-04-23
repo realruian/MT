@@ -1,7 +1,27 @@
 # 会场组件功能 HANDOFF
 
-> 最后更新：2026-04-23（PR3 完成）&nbsp;·&nbsp; 作者：交接中
-> 对应分支：`main` &nbsp;·&nbsp; PR1 `de8c999`；PR2 `9fc8e30`；拖拽换位 `453f7a7`；ensureRootGroup 已提交；PR3 待提交
+> 最后更新：2026-04-23（PR4 阶段 1 完成）&nbsp;·&nbsp; 作者：交接中
+> 对应分支：`main`
+>
+> 主线 commit：
+> - PR1 `de8c999` / PR2 `9fc8e30` / venue 拖拽换位 `453f7a7`
+> - 字体自动化 `ad5b464` / ensureRootGroup `c012c6f` / PR3 `049ae64`
+> - 渠道徽章 `70dcbde` / **PR4 阶段 1** `389ac54` / DEMO 模板切换 `bacfa5d`
+
+---
+
+## ⚠️ 下一位接手优先读：PR4（原会场内容 autolayout）进行中
+
+新大需求：**venue 画布上原 PSD 内容（按图层组）也参与 Figma autolayout**
+—— 原 group 和插入的会场组件统一拖拽换位 + reflow 自动重排 + 删除自动收缩。
+
+- **阶段 1 ✅ 已完成**：PSD 解析层保留嵌套图层组 + admin UI 缩进树
+  展示 + 新 demo PSD `psd_mobmnxso_532a`（38礼遇-会场，4 个顶层
+  Group）已就绪
+- **阶段 2-5 待做**：详见下面 §9「PR4 剩余阶段待办」
+
+5 阶段方案原文在 chat 里，接手人请先读 §9 的决策和命名约定再动代码。
+不要读完 §1-§8 就急着动手 PR4。
 
 面向接手这块功能的下一位开发。读完能在 10 分钟内接住编辑器「会场组件库」
 + 管理后台「会场组件上传」两条链路。
@@ -405,3 +425,164 @@ npx tsc --noEmit && npm run lint
 
 交接中。本 PR 的决策讨论记录散在几个 Cursor 会话，主要可追溯到 commit
 range `b375973..de8c999`（`git log --oneline b375973..de8c999 -- components/editor/ lib/render-psd-to-png.ts lib/venue-* app/api/admin/venue-components`）。
+
+---
+
+## 9. PR4 剩余阶段待办（原会场内容 autolayout，2026-04-23 进行中）
+
+### 9.1 阶段 1 完成快照
+
+| 文件 | 改动 |
+|---|---|
+| `lib/psd-parser.ts` | `walkLayer` 递归替换"只递归一层"；`parentIndex` 指向直接父；嵌套 > 3 层仅 warn 不跳过；空 group 跳过；group bbox 递归收集所有后代叶子算 union |
+| `app/api/admin/psd/upload/route.ts` | response.layers[*] 加回 `parentId` 字段（类型完整性） |
+| `components/admin/psd-manager.tsx` | 两处 layer 列表改为缩进树 + group 可折叠（`renderLayerTree` + `toggleInSet` + `LayerTreeBanner` 三个 helper）；层级用 `marginLeft: depth * 16` |
+| `lib/slot-presets.ts` | `DEMO_TEMPLATE` 切到新 id `psd_mobmnxso_532a`（38礼遇-会场，含 4 顶层 Group） |
+
+新 demo PSD 结构（已验证）：
+- 23 layers，4 个 group（最大嵌套深度 1）
+- 顶层 blocks：`[group 头图, image 圆角背景 (loose), group 搜索框, group 楼层, group 1对1急送礼赠组件]`
+- 圆角背景 is `isFullCanvasBackground` → 阶段 2 排除不进 block
+
+### 9.2 5 个决策结果（必看）
+
+接手人动代码前必须理解这些决策，否则会走回头路。讨论记录见 2026-04-23 chat。
+
+| 决策 | 选择 | 理由 |
+|---|---|---|
+| **D1** demo 模板 id 切换方式 | **A. 手动改 DEMO_TEMPLATE** | 阶段 1 已完成；未来模板变更仍走手动。B/C（PATCH 替换 / 一键设为默认）demo 后再考虑 |
+| **D2** `ensureRootGroup` 处理多顶层 group 场景 | **不改** | 多个平级顶层 group 各自当 `originalGroup` block 本就符合 autolayout 语义；保持"有顶层 group 就 skip" |
+| **D3** 嵌套级联隐藏 | **递归版** | `canvas-stage::groupVisibility` 改成祖先链递归；`reflowVenueBlocks::isVisible` 也要 level-wise 检查祖先链；当前只处理一层 |
+| **D4** 拖拽 `minTop` 约束 | **A. TOP_PADDING (24)** | loose 一般只是铺底背景（已被 `isFullCanvasBackground` 排除）；不预先为"loose 里的 header 背景"设保护机制，出现误挡再加 |
+| **D5** `insertComponentIntoLayers` 的初始 dy | **B. dy = 0** | 新 layer 挂 y=0，插入后 reflow useEffect 立即 setLayers，中间帧不 render；取消 `computeCurrentBottom + INSERT_GAP` 估算 |
+| **D6** undo 快照结构 | **扩展到 `{ editState, layers }`** | reorder 改的是 layers 数组而非 editState；必须同时恢复两者。`venueInsertedLayersRef` 也要同步恢复 |
+| **D7** `venueInsertedLayersRef` 语义 | **全快照** | 从"只存 sourceComponentId != null 的 layer"扩展为"venue 当前完整 layers 快照"；切 slot 再切回时优先读 ref，fallback fetch API。切走再切回后原 group reorder 顺序也保留 |
+| **D8** 数据库 schema | **不改** | `psd_layers.parent_id` FK 已支持任意深度；sort_order 已存 |
+
+### 9.3 核心命名约定（阶段 2-5 新文件 / 新函数统一用这套）
+
+| 概念 | 命名 |
+|---|---|
+| 新文件 | `components/editor/venue-blocks.ts`（Block 类型 + extractBlocks） |
+|  | `components/editor/venue-reflow.ts`（reflowVenueBlocks） |
+|  | `components/editor/venue-reorder.ts`（reorderBlockInLayers；若 < 50 行可合并进 venue-blocks.ts） |
+| Block union | `type Block = { kind: "originalGroup"; groupId; layers; sortKey } \| { kind: "instance"; instanceId; layers; sortKey } \| { kind: "loose"; layers }` |
+| 抽取函数 | `extractBlocks(layers, canvasWidth, canvasHeight): Block[]` |
+| reflow 函数 | `reflowVenueBlocks(layers, editState, cw, origCh): { layerUpdates: Map<string, number>; nextHeight: number; nextEditState }` |
+| reorder 函数 | `reorderBlockInLayers(layers, blockKey: { kind, id }, newIndex): PsdLayer[]` |
+| shell 回调 | `handleReorderBlock(blockKey, newIndex)` 取代 PR2 的 `handleReorderInstance` |
+| 拖拽 mode | canvas-stage 的 DragState `venue-instance` 变体改名为 `venue-block`，携带 `blockKey: { kind: "originalGroup" \| "instance"; id: string }` |
+
+### 9.4 关键算法摘要
+
+#### reflow（阶段 3 的 reflowVenueBlocks 核心）
+
+```
+TOP_PADDING = 24
+GAP = 24
+ABSOLUTE_MIN = 200
+
+blocks = extractBlocks(layers, cw, ch)
+reorderable = blocks.filter(b => b.kind !== "loose").sort(by sortKey)
+looseLayers = blocks.filter(b => b.kind === "loose").flatMap(b => b.layers)
+
+cursor = TOP_PADDING
+updates = new Map()
+
+for block in reorderable:
+  visible = block.layers.filter(isVisible)   // level-wise 祖先链
+  if visible is empty: continue
+  minY = min(visible.y)
+  maxBottom = max(visible.y + visible.height)
+  dy = cursor - minY
+  for l in block.layers: updates.set(l.id, l.y + dy)
+  cursor += (maxBottom - minY) + GAP
+
+looseBottom = max(looseLayers.y + looseLayers.height) or 0
+nextHeight = max(cursor, looseBottom, ABSOLUTE_MIN) + 48
+return { layerUpdates: updates, nextHeight, nextEditState }
+```
+
+- `sortKey` = 该 block 的"首层 layer 在 layers 数组里的下标"（originalGroup
+  是 group 本身的下标；instance 是该 instance 第一个 layer 的下标）
+- reflow 需要同步清 `editState[id].y`（同 PR2）
+- 短路：updates 为空 / 每项 newY === l.y 时返回 `layers` 原引用，避免无限循环
+
+#### 拖拽换位（阶段 4 canvas-stage 的 dropIndex 算法）
+
+**hysteresis 反抖动**（react-dnd 官方模式，避免鼠标颤抖时布局闪烁）：
+
+```
+function computeDropIndex(draggedCenterY, draggedOriginY, others):
+  movingDown = draggedCenterY > draggedOriginY
+  for i in 0..others.length:
+    inst = others[i]
+    if movingDown:
+      if draggedCenterY < inst.centerY + inst.height * 0.25: return i
+    else:
+      if draggedCenterY < inst.centerY - inst.height * 0.25: return i
+  return others.length
+```
+
+- 向下拖：必须越过目标 block 下半（`centerY + h*0.25`）才换
+- 向上拖：必须越过目标 block 上半（`centerY - h*0.25`）才换
+- 落在 block 中间 50% 区间不触发换位（消抖）
+
+#### 边界
+
+- minTop = `TOP_PADDING` (24)，被拖 block 不能拖到 y < 24
+- 微小拖动 `|dy| < 10`：视为无操作，transient state 清空弹回
+- reorder 后顺序与原顺序一致：短路不 `setLayers`
+- loose block / `isFullCanvasBackground` 的 layer：**不进 block 拖拽分支**，走原 module/element drag（自由平移）
+
+### 9.5 PR2 已实现可复用清单
+
+阶段 4 的 venue-block 拖拽是 PR2 venue-instance 的扩展，大量组件可复用：
+
+| PR2 资产 | 阶段 4 用途 |
+|---|---|
+| DragState 类型系统（element / module / venue-instance）| 把 `venue-instance` 变体扩展为 `venue-block` |
+| onMove / onUp window 事件绑定 + useEffect deps 管理 | 无需改动 |
+| instanceDragRef 镜像模式（避免 useEffect 每帧重建）| 改为 `blockDragRef`，存 transient dy + dropIndex + dropIndicatorY |
+| 2px 蓝色横线 dropIndicator（放在内层 scale 容器） | 完全复用 |
+| 微小拖动短路 + reorder 前后对比短路 | 完全复用 |
+| `reorderInstanceInLayers` 的 splice 思路 | 统一到 `reorderBlockInLayers`，兼容 originalGroup |
+| `handleReorderInstance` 的 shell 回调 + setLayers + 同步 ref | 扩展 ref 为全快照（D7）；统一入口改名 `handleReorderBlock` |
+
+### 9.6 要删除 / 废弃的代码
+
+完成阶段 3 后，`components/editor/insert-venue-component.ts` 里这些函数
+变成死代码，要一并删掉：
+
+- `reflowVenueComponents`（被 `reflowVenueBlocks` 取代）
+- `recomputeVenueHeight`（被 `reflowVenueBlocks` 返回的 `nextHeight` 取代）
+- `computeOriginalContentBottom`（新算法里没有"原内容底部"概念）
+- `computeCurrentBottom`（`insertComponentIntoLayers` 的 `dy` 改为 0）
+- `reorderInstanceInLayers`（被 `reorderBlockInLayers` 取代）
+
+保留：`INSERT_GAP`、`VENUE_CANVAS_WIDTH`、`VENUE_CONTENT_WIDTH`、
+`VENUE_CONTENT_LEFT`、`CANVAS_BOTTOM_PADDING`、`insertComponentIntoLayers`、
+`isFullCanvasBackground`。
+
+`editor-shell.tsx` 里废掉 `venueOriginalContentBottom` 计算 + 传给
+CanvasStage 的 prop（阶段 3 新 reflow 不需要这个约束；阶段 4 的
+minTop 用常量 24 即可）。
+
+### 9.7 验收清单（录屏）
+
+1. 用户手动重传 venue 38礼遇 PSD → 解析结果 admin 显示嵌套 group
+   树（阶段 1 ✅）
+2. 进编辑器 → 原内容按 group 显示为可拖拽块
+3. 拖「1对1急送礼赠组件」原 group 到「搜索框」上方 → 顺序对调，
+   画布高度不变
+4. 插入 1 个新会场组件 → 拖到原内容中间 → reorder 生效
+5. 原 group 和 instance 混合排序 → 拖拽 / 删除 / undo 全链路正常
+6. 删除中间任意 block（editState.visible=false）→ 下方 block 上移，
+   画布收缩
+7. loose / 铺底背景不参与拖拽，行为不变
+8. 导出 PNG → 字体精确，block 按当前顺序合成
+9. `npx tsc --noEmit` + `npm run lint` 通过
+
+### 9.8 未决问题
+
+无。5 个决策结果（D1-D8）都已对齐，可以按顺序推阶段 2→3→4→5。
