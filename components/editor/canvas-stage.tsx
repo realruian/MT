@@ -935,32 +935,36 @@ export function CanvasStage({
         </div>
       </div>
 
-      {/* 撤销/重做按钮 + 尺寸胶囊：absolute 吸附在 viewport 顶部居中，不随画布滚动 */}
+      {/* 撤销/重做 + 尺寸信息：合并进同一个圆角胶囊，顶部居中固定 */}
       {!loading && (
-        <div className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 flex items-center gap-2 z-40">
-          {/* 撤销 */}
-          <button
-            type="button"
-            onClick={onUndo}
-            disabled={!canUndo}
-            title={isMac ? "撤销 (⌘Z)" : "撤销 (Ctrl+Z)"}
-            className="pointer-events-auto flex size-8 items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-sm text-[#11192D] transition-colors hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <Undo2 className="size-4" />
-          </button>
-          {/* 重做 */}
-          <button
-            type="button"
-            onClick={onRedo}
-            disabled={!canRedo}
-            title={isMac ? "重做 (⌘⇧Z)" : "重做 (Ctrl+Shift+Z)"}
-            className="pointer-events-auto flex size-8 items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-sm text-[#11192D] transition-colors hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
-          >
-            <Redo2 className="size-4" />
-          </button>
-          {/* 尺寸胶囊 */}
-          <div className="rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-[11px] text-[#999] shadow-sm backdrop-blur">
-            {cw} × {ch} · {Math.round(scale * 100)}%
+        <div className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 z-40">
+          <div className="pointer-events-auto flex items-center gap-0 rounded-full border border-[#e5e5e5] bg-white/90 px-1 py-1 shadow-sm backdrop-blur">
+            {/* 撤销 */}
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo}
+              title={isMac ? "撤销 (⌘Z)" : "撤销 (Ctrl+Z)"}
+              className="flex size-7 items-center justify-center rounded-full text-[#11192D] transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Undo2 className="size-3.5" />
+            </button>
+            {/* 重做 */}
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo}
+              title={isMac ? "重做 (⌘⇧Z)" : "重做 (Ctrl+Shift+Z)"}
+              className="flex size-7 items-center justify-center rounded-full text-[#11192D] transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Redo2 className="size-3.5" />
+            </button>
+            {/* 分隔线 */}
+            <div className="mx-1.5 h-4 w-px bg-[#e5e5e5]" />
+            {/* 尺寸 + 缩放 */}
+            <span className="pr-2 text-[11px] text-[#999]">
+              {cw} × {ch} · {Math.round(scale * 100)}%
+            </span>
           </div>
         </div>
       )}
