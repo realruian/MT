@@ -659,7 +659,11 @@ export function CanvasStage({
                       onSelect({ moduleId: layer.parentId! });
                     }
                   }
-                : undefined;
+                : (e: React.MouseEvent) => {
+                    // 顶层叶子 layer（无 parentId / 扁平 PSD）：直接二级选中
+                    e.stopPropagation();
+                    onSelect({ layerId: layer.id });
+                  };
 
               if (layer.layerType === "text") {
                 const text = getVal(layer, "textContent") ?? "";
