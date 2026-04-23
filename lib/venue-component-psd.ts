@@ -120,20 +120,90 @@ export async function buildVenueComponentFromPsd(params: {
     });
   }
 
-  let height = 0;
-  for (const l of psdLayers) {
-    if (l.layerType === "group") continue;
-    const b = l.y + l.height;
-    if (b > height) height = b;
-  }
-  if (height === 0) height = parsed.height;
+  const { layers: finalLayers, height: computedHeight } = ensureRootGroup(
+    psdLayers,
+    componentId,
+  );
+  const height = computedHeight === 0 ? parsed.height : computedHeight;
 
   return {
-    layers: psdLayers,
+    layers: finalLayers,
     height,
     sourcePsdPathname: psdBlob.pathname,
     sourcePsdUrl: psdBlob.url,
   };
+}
+
+/**
+ * 规范化 venue 组件 layers：保证存在「顶层根 group」。
+ *
+ * 为什么需要：运营的 PSD 经常没有把组件包进一个 Group 图层，parsePsdBuffer
+ * 解析出的就是一堆扁平 leaf（所有 parentId 都是 null）。编辑器端所有"模块级"
+ * 交互（选中模块 → 拖拽换位、删除模块、属性面板显示组件总尺寸）都依赖
+ * `parentId` 链收敛到唯一一个根 group，缺根 group 会触发一连串 footgun：
+ * - insertComponentIntoLayers 的 `rootOrigId = find(parentId == null)` 取到
+ *   第一个 leaf（常是背景图），editor-shell 判 `rootType !== "group"` 走
+ *   叶子选中分支，用户只选中了背景图
+ * - canvas-stage 的 leaf click 里 `parentId` 为 null → handleLeafClick 未绑定，
+ *   点击不响应
+ * - venue-instance 拖拽模式的 `group.instanceId` 条件永远假，拖拽换位入口失效
+ *
+ * 约定：
+ * - 检测：已有任何"顶层 group"（`layerType === "group"` && `parentId == null`）
+ *   则跳过（mock 组件、运营规范上传的 PSD 都免受影响）
+ * - 合成：insert 一个虚拟根 group，把所有原顶层 leaf 的 parentId 指向它
+ *   - id 用 `root_<nonce>`，前缀固定便于 grep / 日志识别
+ *   - zIndex 设 -1：低于所有原 leaf，保持 leaf 的相对绘制顺序（group 本身
+ *     不渲染，z 值只影响 sort 稳定性）
+ *   - **width 强制固定 702**（不从子 layer union 算）：子 layer 边缘常留白，
+ *     union bbox 可能 < 702，会在组件右边缘造成 hit testing 死角。固定
+ *     702 保证整个视觉区间都能命中
+ *   - height 用所有子 leaf 的 `max(y + height)`（= computedHeight）
+ *   - x/y 固定 0（坐标已在上层归零）
+ *
+ * 返回值里的 height 同时也是"组件内容总高度"，调用方可直接写库。
+ */
+function ensureRootGroup(
+  layers: PsdLayer[],
+  templateId: string,
+): { layers: PsdLayer[]; height: number } {
+  let height = 0;
+  for (const l of layers) {
+    if (l.layerType === "group") continue;
+    const b = l.y + l.height;
+    if (b > height) height = b;
+  }
+
+  const hasRootGroup = layers.some(
+    (l) => l.layerType === "group" && l.parentId == null,
+  );
+  if (hasRootGroup) return { layers, height };
+
+  const rootId = `root_${Math.random().toString(36).slice(2, 8)}`;
+  const rootGroup: PsdLayer = {
+    id: rootId,
+    templateId,
+    name: "组件根",
+    layerType: "group",
+    zIndex: -1,
+    x: 0,
+    y: 0,
+    width: VENUE_COMPONENT_WIDTH,
+    height,
+    visible: true,
+    opacity: 1,
+    rotation: 0,
+    locked: false,
+    parentId: null,
+  };
+
+  const rewired = layers.map((l) =>
+    l.parentId == null && l.layerType !== "group"
+      ? { ...l, parentId: rootId }
+      : l,
+  );
+
+  return { layers: [rootGroup, ...rewired], height };
 }
 
 export class PsdWidthMismatchError extends Error {

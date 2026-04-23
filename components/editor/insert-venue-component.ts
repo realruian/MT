@@ -449,7 +449,9 @@ export function insertComponentIntoLayers(
     instanceId,
   }));
 
-  // 根：component.payload.layers 里第一个 parentId==null 的 layer（通常就是 group 根）
+  // 根：component.payload.layers 里第一个 parentId==null 的 layer。
+  // 经 ensureRootGroup 规范化后，它永远是一个 group（upload / PATCH 流水线
+  // 保证每个 venue 组件 payload 都带唯一顶层根 group）。
   const rootOrigId =
     component.payload.layers.find((l) => l.parentId == null)?.id ?? null;
   const rootLayerId = rootOrigId ? (idMap.get(rootOrigId) ?? null) : null;
