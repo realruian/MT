@@ -11,9 +11,19 @@ import { PropertyPanel } from "./property-panel";
 import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
 import { MOCK_VENUE_COMPONENTS } from "./venue-components";
-import { insertComponentIntoLayers } from "./insert-venue-component";
+import {
+  insertComponentIntoLayers,
+  recomputeVenueHeight,
+} from "./insert-venue-component";
 
 export type SlotId = string;
+
+/**
+ * venue 画布的虚拟 layerId：用于把"画布背景色"塞进 editState 享受 undo/redo。
+ * 约定字段：`editState[VENUE_CANVAS_ID].fontColor` = 当前 bgColor（hex，含 #）。
+ * 不对应任何真实 layer，不会参与渲染 / 导出 edits 映射。
+ */
+export const VENUE_CANVAS_ID = "__venue_canvas__";
 
 export interface Slot {
   id: SlotId;
@@ -26,6 +36,8 @@ export interface Slot {
   width: number;
   /** slot 的画布高 */
   height: number;
+  /** 画布背景色（hex，含 #）；editState[VENUE_CANVAS_ID].fontColor 覆盖此默认 */
+  bgColor?: string;
 }
 
 interface EditorShellProps {
@@ -42,8 +54,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       thumbnail: template.thumbnail,
       width: template.canvasWidth ?? template.width,
       height: template.canvasHeight ?? template.height,
+      bgColor: "#FFFFFF",
     },
   ]);
+  // venue 画布最小高度 = 模板原始 height；删光所有插入组件时画布不会塌到 0
+  const minVenueHeightRef = useRef<number>(
+    template.canvasHeight ?? template.height,
+  );
   const [activeSlotId, setActiveSlotId] = useState<SlotId>("venue");
   const [extendModalOpen, setExtendModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -227,8 +244,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     }
   }
 
-  // 点击会场组件卡片 → 克隆 payload.layers 追加到 venue 画布底部、按需拉长
-  // 画布、自动选中新组件根 group 让属性面板亮起来、同时保留卡片 active 态。
+  // 点击会场组件卡片 → 克隆 payload.layers 追加到 venue 画布底部；
+  // 画布高度不在这里算，由下面的 useEffect([layers, editState]) 统一重算。
   // 假定调用时 activeSlotId === "venue"（会场 tab 下点的组件，tab 切换逻辑已
   // 保证这个恒等）；非 venue 场景只更新 active 视觉态不动画布。
   function handleSelectVenueComponent(id: string) {
@@ -244,13 +261,11 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     const venueSlot = slots.find((s) => s.id === "venue");
     if (!venueSlot) return;
 
-    const { nextLayers, nextCanvasHeight, rootLayerId } =
-      insertComponentIntoLayers(
-        layers,
-        component,
-        venueSlot.height,
-        venueSlot.templateId,
-      );
+    const { nextLayers, rootLayerId } = insertComponentIntoLayers(
+      layers,
+      component,
+      venueSlot.templateId,
+    );
 
     // 只保留本次插入的新增那一段，追加到 ref（切走 / 切回 venue 都能拼回）
     const insertedSlice = nextLayers.slice(layers.length);
@@ -259,14 +274,6 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       ...insertedSlice,
     ];
     setLayers(nextLayers);
-
-    if (nextCanvasHeight !== venueSlot.height) {
-      setSlots((prev) =>
-        prev.map((s) =>
-          s.id === "venue" ? { ...s, height: nextCanvasHeight } : s,
-        ),
-      );
-    }
 
     // 选中新组件根：如果是 group 走模块选中（可整体拖动），否则走叶子选中
     if (rootLayerId) {
@@ -280,6 +287,26 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     console.log("[VenueComponentCard] inserted:", id, "root:", rootLayerId);
   }
 
+  // venue 画布高度的唯一数据源：layers / editState 任一变化都重算，保证
+  // 删组件、改 y/h、隐藏模块等所有路径都能自动收缩 / 增长到"内容 + 48px"。
+  // 最小值是模板原始高度（minVenueHeightRef），防止清空所有插入组件后塌到 0。
+  // 非 venue slot 不同步。
+  useEffect(() => {
+    if (activeSlot.id !== "venue") return;
+    const nextH = recomputeVenueHeight(
+      layers,
+      editState,
+      minVenueHeightRef.current,
+    );
+    setSlots((prev) => {
+      const venue = prev.find((s) => s.id === "venue");
+      if (!venue || venue.height === nextH) return prev;
+      return prev.map((s) =>
+        s.id === "venue" ? { ...s, height: nextH } : s,
+      );
+    });
+  }, [layers, editState, activeSlot.id]);
+
   // beforeunload 提示：venue 当前 layers 含任一"来自组件库的图层"时挂载原生
   // 离开确认（浏览器只显示默认文案，无法自定义），提醒用户刷新会丢失插入
   useEffect(() => {
@@ -292,6 +319,17 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [layers]);
+
+  // 画布背景色 eff 值 + 编辑回调（走 editState 享受 undo/redo）
+  const venueSlot = slots.find((s) => s.id === "venue");
+  const effVenueBgColor =
+    editState[VENUE_CANVAS_ID]?.fontColor ?? venueSlot?.bgColor ?? "#FFFFFF";
+  const handleCanvasBgColorChange = useCallback(
+    (hex: string) => {
+      updateLayer(VENUE_CANVAS_ID, { fontColor: hex });
+    },
+    [updateLayer],
+  );
 
   function handleReplaceModule(moduleId: string) {
     console.log("[T6] replace module", moduleId);
@@ -336,6 +374,9 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   async function exportOneSlot(slot: Slot) {
     const edits: Record<string, Record<string, unknown>> = {};
     for (const [id, overrides] of Object.entries(editState)) {
+      // VENUE_CANVAS_ID 是"画布背景色"的虚拟键，不对应任何 layer，
+      // 单独通过 bgColor 字段下发给后端，这里过滤掉
+      if (id === VENUE_CANVAS_ID) continue;
       if (Object.keys(overrides).length > 0) edits[id] = { ...overrides };
     }
     // 对当前 slot 的所有文本图层补齐有效 fontFamily / fontWeight：
@@ -375,6 +416,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
       layers.some((l) => l.sourceComponentId != null)
     ) {
       bodyPayload.layers = layers;
+    }
+    // 画布背景色：venue 走 eff 值（editState 覆盖 slot.bgColor），其他 slot
+    // 走 slot.bgColor（目前只有 venue 有 UI 入口，延展 slot 保持默认白）
+    if (slot.id === "venue") {
+      bodyPayload.bgColor = effVenueBgColor;
+    } else if (slot.bgColor) {
+      bodyPayload.bgColor = slot.bgColor;
     }
     const res = await fetch("/api/export/psd", {
       method: "POST",
@@ -472,6 +520,9 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onUpdate={updateLayer}
             onReplaceModule={handleReplaceModule}
             onDeleteModule={handleDeleteModule}
+            isVenue={activeSlotId === "venue"}
+            canvasBgColor={effVenueBgColor}
+            onCanvasBgColorChange={handleCanvasBgColorChange}
           />
         </div>
       </div>

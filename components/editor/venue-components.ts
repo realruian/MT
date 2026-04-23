@@ -34,26 +34,31 @@ function mockThumb(color: string, aspectW: number, aspectH: number): string {
 /**
  * 会场组件分组表：保持严格顺序（VenueComponentLibrary 按 groups[i].name 首次
  * 出现顺序渲染）。每组一个代表色 + 一种缩略图比例 + 对应像素尺寸 + public 下
- * 的色块 PNG 文件名（由 scripts/gen-mock-venue-pngs.mjs 一次性生成）。
+ * 的色块 PNG 文件名（由一次性脚本基于 sharp 生成）。
+ *
+ * 尺寸约定：所有会场组件 content 宽统一 702 px（venue 画布 750 − 左右各 24
+ * 内边距）；height 按组件 ratio 自适应。sharp 导出时会按 layer.width/height
+ * resize 原 PNG，原始 PNG 尺寸可以不完全一致，不影响视觉。
+ * 后台上传真实组件时需强制 width === 702，不符合直接 reject（TODO）。
  */
 const GROUPS: {
   name: string;
   short: string;
   color: string;
   ratio: [number, number];
-  /** 组件真实画布尺寸（px），与 public/mock-venue/<png> 尺寸一致 */
+  /** 组件 bbox 尺寸（px）：width 固定 702，height = 702 * ratioH / ratioW */
   width: number;
   height: number;
-  /** public/mock-venue 下的 PNG 文件名，插入 layer 的 imageUrl 会指向 `/mock-venue/<png>` */
+  /** public/mock-venue 下的 PNG 文件名，插入 layer 的 imageUrl 指向 `/mock-venue/<png>` */
   png: string;
 }[] = [
-  { name: "头图模块", short: "头图", color: "#FF5D6E", ratio: [16, 9], width: 750, height: 422, png: "head.png" },
-  { name: "优惠券", short: "优惠券", color: "#FF8A3D", ratio: [1, 1], width: 400, height: 400, png: "coupon.png" },
-  { name: "开礼包", short: "开礼包", color: "#FFC93D", ratio: [1, 1], width: 400, height: 400, png: "gift.png" },
-  { name: "膨半价节日神券", short: "膨半价", color: "#10B981", ratio: [4, 3], width: 600, height: 450, png: "discount.png" },
-  { name: "1对1急送", short: "1对1急送", color: "#3BA7FF", ratio: [3, 1], width: 750, height: 250, png: "urgent.png" },
-  { name: "站台", short: "站台", color: "#6C63FF", ratio: [1, 1], width: 400, height: 400, png: "station.png" },
-  { name: "免单", short: "免单", color: "#EC4899", ratio: [2, 1], width: 600, height: 300, png: "free.png" },
+  { name: "头图模块", short: "头图", color: "#FF5D6E", ratio: [16, 9], width: 702, height: 395, png: "head.png" },
+  { name: "优惠券", short: "优惠券", color: "#FF8A3D", ratio: [1, 1], width: 702, height: 702, png: "coupon.png" },
+  { name: "开礼包", short: "开礼包", color: "#FFC93D", ratio: [1, 1], width: 702, height: 702, png: "gift.png" },
+  { name: "膨半价节日神券", short: "膨半价", color: "#10B981", ratio: [4, 3], width: 702, height: 527, png: "discount.png" },
+  { name: "1对1急送", short: "1对1急送", color: "#3BA7FF", ratio: [3, 1], width: 702, height: 234, png: "urgent.png" },
+  { name: "站台", short: "站台", color: "#6C63FF", ratio: [1, 1], width: 702, height: 702, png: "station.png" },
+  { name: "免单", short: "免单", color: "#EC4899", ratio: [2, 1], width: 702, height: 351, png: "free.png" },
 ];
 
 /** 字号按组件短边自适应：让文字在任意比例卡上都醒目但不溢出。 */

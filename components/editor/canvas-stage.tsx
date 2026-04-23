@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
-import type { Slot } from "./editor-shell";
+import { VENUE_CANVAS_ID, type Slot } from "./editor-shell";
 
 interface CanvasStageProps {
   template: Template;
@@ -31,6 +31,12 @@ export function CanvasStage({
   // 图层仍按 PSD 原始坐标渲染，超出画布的部分会被 overflow: hidden 裁掉。
   const cw = slot.width;
   const ch = slot.height;
+  // 画布背景色：venue 走 editState 虚拟 id（享受 undo）覆盖 slot.bgColor 默认；
+  // 其他 slot（延展）直接用 slot.bgColor 或默认白
+  const effBgColor =
+    slot.id === "venue"
+      ? (editState[VENUE_CANVAS_ID]?.fontColor ?? slot.bgColor ?? "#FFFFFF")
+      : (slot.bgColor ?? "#FFFFFF");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(0.5);
@@ -336,7 +342,7 @@ export function CanvasStage({
             width: cw * scale,
             height: ch * scale,
             boxShadow: "0 1px 4px rgba(0,0,0,0.04)",
-            background: "#ffffff",
+            background: effBgColor,
             // 防止编辑态 textarea 横向撑出画布时把外层容器推偏；
             // overflow:clip + contain:strict 比 overflow:hidden 更硬，能阻断子元素对父布局尺寸的反向影响
             overflow: "clip",
@@ -353,7 +359,7 @@ export function CanvasStage({
               transform: `scale(${scale})`,
               transformOrigin: "top left",
               overflow: "hidden",
-              background: "#ffffff",
+              background: effBgColor,
             }}
           >
             {sortedLayers.map((layer) => {

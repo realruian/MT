@@ -24,6 +24,21 @@ interface LayerEdit {
   visible?: boolean;
 }
 
+/** 解析 #RRGGBB hex → { r, g, b }（0-255）。非 6 位 hex 返回 null 让调用方 fallback。 */
+function parseHexToRgb(
+  hex: string | undefined,
+): { r: number; g: number; b: number } | null {
+  if (!hex) return null;
+  const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
+  if (!m) return null;
+  const h = m[1];
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
 /** body.layers 基本合法性校验；失败时回退到 DB 拉取，绝不直接 400 阻断导出。 */
 function isValidLayers(arr: unknown): arr is PsdLayer[] {
   if (!Array.isArray(arr)) return false;
@@ -251,15 +266,23 @@ function renderTextToPng(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { templateId, edits, canvasWidth, canvasHeight, layers: bodyLayers } =
-      body as {
-        templateId: string;
-        edits: Record<string, LayerEdit>;
-        canvasWidth?: number;
-        canvasHeight?: number;
-        /** 可选：前端直接下发完整 layers（会场插入组件后用这个分支，绕过 DB 拉取） */
-        layers?: unknown;
-      };
+    const {
+      templateId,
+      edits,
+      canvasWidth,
+      canvasHeight,
+      layers: bodyLayers,
+      bgColor,
+    } = body as {
+      templateId: string;
+      edits: Record<string, LayerEdit>;
+      canvasWidth?: number;
+      canvasHeight?: number;
+      /** 可选：前端直接下发完整 layers（会场插入组件后用这个分支，绕过 DB 拉取） */
+      layers?: unknown;
+      /** 可选：画布背景色（hex，含 #）；未传或非法时回退白色 */
+      bgColor?: string;
+    };
 
     if (!templateId) {
       return Response.json({ error: "Missing templateId" }, { status: 400 });
@@ -415,15 +438,17 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const whiteBg = Buffer.alloc(cw * ch * 4, 0);
+    // 画布底色：按 body.bgColor 解析；非法或未传落回白
+    const bgRgb = parseHexToRgb(bgColor) ?? { r: 255, g: 255, b: 255 };
+    const baseBg = Buffer.alloc(cw * ch * 4, 0);
     for (let i = 0; i < cw * ch; i++) {
-      whiteBg[i * 4] = 255;
-      whiteBg[i * 4 + 1] = 255;
-      whiteBg[i * 4 + 2] = 255;
-      whiteBg[i * 4 + 3] = 255;
+      baseBg[i * 4] = bgRgb.r;
+      baseBg[i * 4 + 1] = bgRgb.g;
+      baseBg[i * 4 + 2] = bgRgb.b;
+      baseBg[i * 4 + 3] = 255;
     }
 
-    const result = await sharp(whiteBg, { raw: { width: cw, height: ch, channels: 4 } })
+    const result = await sharp(baseBg, { raw: { width: cw, height: ch, channels: 4 } })
       .composite(compositeInputs)
       .png()
       .toBuffer();

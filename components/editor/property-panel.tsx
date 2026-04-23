@@ -14,6 +14,12 @@ interface PropertyPanelProps {
   onUpdate: (id: string, updates: Partial<PsdLayer>) => void;
   onReplaceModule: (moduleId: string) => void;
   onDeleteModule: (moduleId: string) => void;
+  /** 当前 slot 是否 venue —— 仅 venue 下显示"画布背景"可编辑行 */
+  isVenue: boolean;
+  /** 当前生效的画布背景色（eff：editState > slot.bgColor > #FFFFFF） */
+  canvasBgColor: string;
+  /** 改画布背景色；editor-shell 用 onUpdate(VENUE_CANVAS_ID, { fontColor }) 包装 */
+  onCanvasBgColorChange: (hex: string) => void;
 }
 
 type StrKey =
@@ -49,6 +55,9 @@ export function PropertyPanel({
   onUpdate,
   onReplaceModule,
   onDeleteModule,
+  isVenue,
+  canvasBgColor,
+  onCanvasBgColorChange,
 }: PropertyPanelProps) {
   const canvasW = template.canvasWidth ?? template.width;
   const canvasH = template.canvasHeight ?? template.height;
@@ -101,7 +110,7 @@ export function PropertyPanel({
 
   return (
     <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#7C889C]/10 [&>section]:mx-3 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section]:py-5 [&>section:first-child]:border-t-0">
-      {/* 状态 1：什么都没选中 → 仅显示画布尺寸 */}
+      {/* 状态 1：什么都没选中 → 显示画布尺寸 + (venue 下) 画布背景色编辑 */}
       {!selectedLayer && !selectedGroup && (
         <section>
           <h3 className="mb-3 text-[12px] text-[#11192D]">画布尺寸</h3>
@@ -113,6 +122,15 @@ export function PropertyPanel({
               <FieldValue>{canvasH}</FieldValue>
             </FieldBox>
           </div>
+          {isVenue && (
+            <>
+              <h3 className="mt-5 mb-3 text-[12px] text-[#11192D]">画布背景</h3>
+              <CanvasBgColorRow
+                value={canvasBgColor}
+                onChange={onCanvasBgColorChange}
+              />
+            </>
+          )}
         </section>
       )}
 
@@ -574,6 +592,48 @@ function TextFields({
       <AlignButtons
         value={textAlign}
         onChange={(v) => setStr(layer, "textAlign", v)}
+      />
+    </div>
+  );
+}
+
+/** 画布背景胶囊：24×24 色块 + hex 文本。点色块弹原生 <input type="color">。
+ *  与"填充颜色"胶囊视觉风格一致，去掉不透明度部分。 */
+function CanvasBgColorRow({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (hex: string) => void;
+}) {
+  const safe = /^#[0-9a-fA-F]{6}$/.test(value)
+    ? value.toLowerCase()
+    : "#ffffff";
+  const displayHex = safe.slice(1).toUpperCase();
+
+  return (
+    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] pl-1 pr-3">
+      <label className="relative flex size-[24px] shrink-0 cursor-pointer overflow-hidden rounded-[6px] border border-[#E5E7EB]">
+        <span
+          className="absolute inset-0"
+          style={{ backgroundColor: safe }}
+          aria-hidden
+        />
+        <input
+          type="color"
+          value={safe}
+          onChange={(e) => onChange(e.target.value)}
+          className="absolute inset-0 size-full cursor-pointer opacity-0"
+        />
+      </label>
+      <input
+        type="text"
+        value={displayHex}
+        onChange={(e) => {
+          const raw = e.target.value.trim().replace(/^#/, "");
+          onChange(raw ? `#${raw}` : "#ffffff");
+        }}
+        className="min-w-0 flex-1 bg-transparent text-[12px] text-[#11192D] outline-none"
       />
     </div>
   );
