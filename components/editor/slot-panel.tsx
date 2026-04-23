@@ -462,7 +462,13 @@ function SlotItem({
               alt={slot.name}
               className="size-full object-cover"
             />
-          ) : null}
+          ) : (
+            <div className="flex size-full flex-col items-center justify-center px-0.5 text-center leading-tight text-[#aab0bb]">
+              <span className="text-[8px]">{slot.width}</span>
+              <span className="text-[8px]">×</span>
+              <span className="text-[8px]">{slot.height}</span>
+            </div>
+          )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
           <p className="truncate text-[14px] text-[#4F607A]">{displayName}</p>

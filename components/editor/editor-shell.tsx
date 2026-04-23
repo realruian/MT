@@ -8,6 +8,7 @@ import {
   type FontFamilyDef,
 } from "@/lib/fonts";
 import type { SlotPreset, SlotSize } from "@/lib/slot-presets";
+import { SLOT_PRESETS_DEMO_TEMPLATE } from "@/lib/slot-presets";
 import { EditorTopbar } from "./editor-topbar";
 import { SlotPanel, type LeftPanelTab } from "./slot-panel";
 import { CanvasStage } from "./canvas-stage";
@@ -416,7 +417,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     const newSlots: Slot[] = picks.map(({ preset, size }) => ({
       id: `slot_${preset.id}_${size.id}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       name: `${preset.name} ${size.label}`,
-      templateId: size.templateId,
+      // PSD-backed slot 用自己的 templateId；尺寸占位 slot 降级到 demo 模板
+      templateId: size.templateId ?? SLOT_PRESETS_DEMO_TEMPLATE,
       width: size.width,
       height: size.height,
     }));
