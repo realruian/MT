@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { SLOT_PRESETS, type SlotPreset, type SlotSize } from "@/lib/slot-presets";
 
 interface ExtendModalProps {
@@ -10,14 +10,10 @@ interface ExtendModalProps {
   onConfirm: (picks: Array<{ preset: SlotPreset; size: SlotSize }>) => void;
 }
 
-const CIRCUMFERENCE = 2 * Math.PI * 80; // r=80
-
 export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState(0);
-  const [loadingText, setLoadingText] = useState("");
-  const [loadingCount, setLoadingCount] = useState(0);
+  const [pickCount, setPickCount] = useState(0);
 
   if (!open) return null;
 
@@ -44,40 +40,8 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
     });
   }
 
-  /** rAF 平滑过渡 progress 从 from → to，耗时 duration ms */
-  function animateProgressTo(from: number, to: number, duration: number): Promise<void> {
-    return new Promise((resolve) => {
-      const startTime = performance.now();
-      function step(now: number) {
-        const elapsed = now - startTime;
-        const t = Math.min(elapsed / duration, 1);
-        // ease-out cubic 让最后阶段更自然
-        const eased = 1 - Math.pow(1 - t, 2);
-        setLoadingProgress(from + (to - from) * eased);
-        if (t < 1) {
-          requestAnimationFrame(step);
-        } else {
-          setLoadingProgress(to);
-          resolve();
-        }
-      }
-      requestAnimationFrame(step);
-    });
-  }
-
   async function runFakeAiAnimation() {
-    const stages = [
-      { duration: 1000, text: "分析画布元素…", progressTo: 28 },
-      { duration: 1000, text: "适配资源位尺寸…", progressTo: 58 },
-      { duration: 1000, text: "生成布局…", progressTo: 88 },
-      { duration: 500,  text: "即将完成…",     progressTo: 100 },
-    ];
-    let prev = 0;
-    for (const stage of stages) {
-      setLoadingText(stage.text);
-      await animateProgressTo(prev, stage.progressTo, stage.duration);
-      prev = stage.progressTo;
-    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 3500));
   }
 
   async function handleConfirm() {
@@ -96,8 +60,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
 
     if (hasPsdBacked) {
       setLoading(true);
-      setLoadingProgress(0);
-      setLoadingCount(picks.length);
+      setPickCount(picks.length);
       await runFakeAiAnimation();
       setLoading(false);
     }
@@ -107,11 +70,9 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
   }
 
   const handleClose = () => {
-    if (loading) return; // loading 期间禁止关闭
+    if (loading) return;
     onClose();
   };
-
-  const dashOffset = CIRCUMFERENCE * (1 - loadingProgress / 100);
 
   return (
     <>
@@ -248,76 +209,10 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
 
       {/* ── 假 AI Loading 全屏遮罩（z-[60]，高于弹窗 z-50） ── */}
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60">
-          <div className="flex flex-col items-center gap-5">
-            {/* 圆形进度条 */}
-            <svg
-              width="200"
-              height="200"
-              viewBox="0 0 200 200"
-              style={{ overflow: "visible" }}
-            >
-              {/* 底圈（浅色轨道） */}
-              <circle
-                cx="100"
-                cy="100"
-                r="80"
-                fill="none"
-                stroke="rgba(255,255,255,0.15)"
-                strokeWidth="6"
-              />
-              {/* 进度弧 */}
-              <circle
-                cx="100"
-                cy="100"
-                r="80"
-                fill="none"
-                stroke="white"
-                strokeWidth="6"
-                strokeLinecap="round"
-                strokeDasharray={CIRCUMFERENCE}
-                strokeDashoffset={dashOffset}
-                transform="rotate(-90 100 100)"
-                style={{ transition: "stroke-dashoffset 0.05s linear" }}
-              />
-              {/* 百分比数字 */}
-              <text
-                x="100"
-                y="100"
-                textAnchor="middle"
-                dominantBaseline="central"
-                fill="white"
-                fontSize="32"
-                fontWeight="500"
-                fontFamily="system-ui, sans-serif"
-              >
-                {Math.round(loadingProgress)}%
-              </text>
-            </svg>
-
-            {/* 主文案 */}
-            <p
-              style={{
-                fontSize: 18,
-                color: "#FFFFFF",
-                margin: 0,
-                fontWeight: 500,
-                letterSpacing: "0.02em",
-              }}
-            >
-              {loadingText}
-            </p>
-
-            {/* 副文案 */}
-            <p
-              style={{
-                fontSize: 14,
-                color: "#C0C8D5",
-                margin: 0,
-              }}
-            >
-              正在生成 {loadingCount} 个资源位
-            </p>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="flex items-center gap-2 text-white text-[16px]">
+            <Loader2 className="size-3.5 animate-spin" />
+            <span>AI 正在生成 {pickCount} 个资源位…</span>
           </div>
         </div>
       )}
