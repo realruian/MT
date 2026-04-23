@@ -56,4 +56,11 @@ export interface PsdLayer {
    * layers 数组下发到 /api/export/psd。
    */
   sourceComponentId?: string;
+  /**
+   * 运行时字段：同一次 insertVenueComponent 产生的 layer（root group + 子叶子）
+   * 共享同一个 instanceId（用 insert 时的 nonce）。同一会场组件被插入多次时
+   * 每次生成不同 instanceId，reflow 算法依此聚合组件实例 → 按数组首次出现顺序
+   * 重新铺排 y 坐标。DB 不存储。
+   */
+  instanceId?: string;
 }

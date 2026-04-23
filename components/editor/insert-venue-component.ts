@@ -28,6 +28,130 @@ export const VENUE_CONTENT_LEFT =
  * 这是 venue.height 的唯一数据源；insertComponent 不再自己算 nextCanvasHeight，
  * 全部交给 editor-shell 的 useEffect 统一处理。
  */
+/**
+ * venue 插入组件的垂直自动布局（reflow）：
+ * - 按 instanceId 聚合"组件实例"，按 layers 数组中首次出现的下标排序
+ *   （= 插入时间顺序）
+ * - 跳过隐藏的实例（editState[group.id].visible=false，"删除模块"路径）
+ * - 从 originalContentBottom + 24 开始，给每个可见实例依次分配 y；实例内
+ *   所有 layer 整体平移同一个 dy，保持相对位置（bg/text/group 都跟着移）
+ * - 清除 editState[id].y（用户手动拖动过的覆盖）：reflow 之后以 layer.y
+ *   为准。Demo 阶段"自动布局优先"，手动拖动会被下一次 reflow 覆盖
+ * - originalContentBottom = venue 原 PSD 可见叶子图层（sourceComponentId
+ *   为空）的 max(y + h)，每次 reflow 动态算，确保 venue 原内容也能被
+ *   编辑后保持正确衔接
+ *
+ * 无变化时返回 layers / editState 原引用（===），供调用方短路避免无限循环。
+ */
+export function reflowVenueComponents(
+  layers: PsdLayer[],
+  editState: Record<string, Partial<PsdLayer>>,
+): {
+  nextLayers: PsdLayer[];
+  nextEditState: Record<string, Partial<PsdLayer>>;
+} {
+  // 1. venue 原 PSD 图层的底部（eff y+h），reflow 的起点
+  let originalBottom = 0;
+  for (const l of layers) {
+    if (l.sourceComponentId) continue;
+    if (l.layerType === "group") continue;
+    const eff = editState[l.id] ?? {};
+    const effVisible = eff.visible !== undefined ? eff.visible : l.visible;
+    if (!(effVisible === true || String(effVisible) === "true")) continue;
+    const y = typeof eff.y === "number" ? eff.y : l.y;
+    const h = typeof eff.height === "number" ? eff.height : l.height;
+    const b = y + h;
+    if (b > originalBottom) originalBottom = b;
+  }
+
+  // 2. 按 instanceId 聚合，记录首次出现下标（= 插入顺序）
+  const instanceFirstIdx = new Map<string, number>();
+  const byInstance = new Map<string, PsdLayer[]>();
+  for (let i = 0; i < layers.length; i++) {
+    const l = layers[i];
+    if (!l.instanceId) continue;
+    if (!byInstance.has(l.instanceId)) {
+      byInstance.set(l.instanceId, []);
+      instanceFirstIdx.set(l.instanceId, i);
+    }
+    byInstance.get(l.instanceId)!.push(l);
+  }
+
+  // 3. 过滤隐藏的实例（其 root group 被 editState.visible=false 标记）
+  const visibleInstances: { instanceId: string; inst: PsdLayer[] }[] = [];
+  for (const [instanceId, inst] of byInstance) {
+    const root = inst.find((l) => l.layerType === "group" && l.parentId == null);
+    if (root) {
+      const eff = editState[root.id] ?? {};
+      const effVisible = eff.visible !== undefined ? eff.visible : root.visible;
+      if (!(effVisible === true || String(effVisible) === "true")) continue;
+    }
+    visibleInstances.push({ instanceId, inst });
+  }
+  visibleInstances.sort(
+    (a, b) =>
+      (instanceFirstIdx.get(a.instanceId) ?? 0) -
+      (instanceFirstIdx.get(b.instanceId) ?? 0),
+  );
+
+  // 4. 从 originalBottom + 24 开始依次分配实例顶部 y；收集 (layerId → newY)
+  let cursor = originalBottom === 0 ? 0 : originalBottom + INSERT_GAP;
+  const updates = new Map<string, number>();
+  for (const { inst } of visibleInstances) {
+    const minY = inst.reduce(
+      (m, l) => (l.y < m ? l.y : m),
+      Number.POSITIVE_INFINITY,
+    );
+    const maxBot = inst.reduce(
+      (m, l) => (l.y + l.height > m ? l.y + l.height : m),
+      0,
+    );
+    const dy = cursor - minY;
+    if (dy !== 0) {
+      for (const l of inst) {
+        updates.set(l.id, l.y + dy);
+      }
+    }
+    cursor += maxBot - minY + INSERT_GAP;
+  }
+
+  // 5. 构造 nextLayers；updates 为空 / 每项 newY === l.y 都短路返回原引用
+  let layersChanged = false;
+  const nextLayers = layers.map((l) => {
+    const newY = updates.get(l.id);
+    if (newY === undefined || newY === l.y) return l;
+    layersChanged = true;
+    return { ...l, y: newY };
+  });
+
+  // 6. 清除被 reflow 覆盖的 layer 对应 editState.y（避免 eff y 继续指向
+  //    用户之前的手动拖动位置，掩盖 reflow 结果）
+  let editStateChanged = false;
+  let nextEditState = editState;
+  for (const id of updates.keys()) {
+    const entry = editState[id];
+    if (!entry || entry.y === undefined) continue;
+    if (!editStateChanged) {
+      nextEditState = { ...editState };
+      editStateChanged = true;
+    }
+    const copy: Partial<PsdLayer> = { ...entry };
+    delete copy.y;
+    if (Object.keys(copy).length === 0) {
+      const rest = { ...nextEditState };
+      delete rest[id];
+      nextEditState = rest;
+    } else {
+      nextEditState = { ...nextEditState, [id]: copy };
+    }
+  }
+
+  return {
+    nextLayers: layersChanged ? nextLayers : layers,
+    nextEditState: editStateChanged ? nextEditState : editState,
+  };
+}
+
 export function recomputeVenueHeight(
   layers: PsdLayer[],
   editState: Record<string, Partial<PsdLayer>>,
@@ -125,9 +249,10 @@ export function insertComponentIntoLayers(
   const xShift = minX === Infinity ? VENUE_CONTENT_LEFT : VENUE_CONTENT_LEFT - minX;
 
   const nonce = Math.random().toString(36).slice(2, 8);
+  const instanceId = `venue_inst_${nonce}`;
   const idMap = new Map<string, string>();
   for (const l of component.payload.layers) {
-    idMap.set(l.id, `venue_inst_${nonce}_${l.id}`);
+    idMap.set(l.id, `${instanceId}_${l.id}`);
   }
 
   const cloned: PsdLayer[] = component.payload.layers.map((l) => ({
@@ -139,6 +264,7 @@ export function insertComponentIntoLayers(
     y: l.y + dy,
     zIndex: l.zIndex + maxZ + 1,
     sourceComponentId: component.id,
+    instanceId,
   }));
 
   // 根：component.payload.layers 里第一个 parentId==null 的 layer（通常就是 group 根）

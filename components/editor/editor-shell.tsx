@@ -14,6 +14,7 @@ import { MOCK_VENUE_COMPONENTS } from "./venue-components";
 import {
   insertComponentIntoLayers,
   recomputeVenueHeight,
+  reflowVenueComponents,
 } from "./insert-venue-component";
 
 export type SlotId = string;
@@ -287,10 +288,23 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     console.log("[VenueComponentCard] inserted:", id, "root:", rootLayerId);
   }
 
+  // venue 插入组件的垂直自动布局：layers/editState 变化时先对所有实例做
+  // reflow（按 instanceId 聚合、按插入顺序自上而下铺排），删除中间组件后
+  // 下方组件自动上移填空。reflow 不改的情况下返回原引用 → 短路避免循环。
+  useEffect(() => {
+    if (activeSlot.id !== "venue") return;
+    const { nextLayers, nextEditState } = reflowVenueComponents(
+      layers,
+      editState,
+    );
+    if (nextLayers !== layers) setLayers(nextLayers);
+    if (nextEditState !== editState) setEditState(nextEditState);
+  }, [layers, editState, activeSlot.id]);
+
   // venue 画布高度的唯一数据源：layers / editState 任一变化都重算，保证
   // 删组件、改 y/h、隐藏模块等所有路径都能自动收缩 / 增长到"内容 + 48px"。
   // 最小值是模板原始高度（minVenueHeightRef），防止清空所有插入组件后塌到 0。
-  // 非 venue slot 不同步。
+  // 非 venue slot 不同步。reflow 之后 layers 已稳定，这里只读最终位置。
   useEffect(() => {
     if (activeSlot.id !== "venue") return;
     const nextH = recomputeVenueHeight(
