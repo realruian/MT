@@ -57,5 +57,22 @@ export async function initDatabase() {
 
     CREATE INDEX IF NOT EXISTS idx_psd_layers_template ON psd_layers(template_id);
     CREATE INDEX IF NOT EXISTS idx_psd_layers_parent_id ON psd_layers(parent_id);
+
+    -- 会场组件库（可插入到会场画布的业务积木）
+    -- PR1 只有上传 / 列表 / 删除闭环；编辑器消费由后续 PR 接入
+    CREATE TABLE IF NOT EXISTS venue_components (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      group_name TEXT NOT NULL,
+      thumbnail_url TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      width INTEGER NOT NULL,
+      height INTEGER NOT NULL,
+      source_psd_url TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_venue_components_group ON venue_components(group_name, sort_order);
   `);
 }

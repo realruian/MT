@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2 } from "lucide-react";
+import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2, Boxes } from "lucide-react";
 import { PsdManager } from "@/components/admin/psd-manager";
 
 const CATEGORIES = [
@@ -476,7 +476,13 @@ export default function AdminPage() {
               {message}
             </span>
           )}
-          
+          <Link
+            href="/admin/venue-components"
+            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
+          >
+            <Boxes className="size-3.5" />
+            会场组件
+          </Link>
         </div>
       </header>
 
