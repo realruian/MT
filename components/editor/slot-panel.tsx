@@ -38,7 +38,8 @@ export function SlotPanel({
   return (
     <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#7C889C]/10">
       <TabHeader tab={tab} onTabChange={onTabChange} />
-      <div className="flex-1 overflow-y-auto pb-5">
+      {/* 隐藏滚动条但保留滚动：webkit / firefox / 旧 IE 三端都隐藏 */}
+      <div className="flex-1 overflow-y-auto pb-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {tab === "venue" ? (
           <VenueTab
             components={components}
