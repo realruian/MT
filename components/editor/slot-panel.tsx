@@ -194,7 +194,7 @@ function VenueComponentGroup({
           {title}
         </h4>
       )}
-      <ul className="grid grid-cols-2 gap-2 px-5">
+      <ul className="grid grid-cols-2 items-start gap-2 px-5">
         {components.map((c) => (
           <VenueComponentCard
             key={c.id}
@@ -219,9 +219,9 @@ function VenueComponentCard({
   selected,
   onSelect,
 }: VenueComponentCardProps) {
-  // 会场组件卡片：显式 100×100 外壳 + 固定 76×76 内层缩略图（统一"12px 灰边"，
-  // 与 mock SVG 的内部结构解耦）。不依赖 img 的 padding，避免 p-3 +
-  // object-contain 在某些 viewBox / 渲染路径下失效导致色块铺满整张卡片。
+  // 会场组件卡片：宽度由 grid 单元格撑满（w-full），高度由缩略图 intrinsic
+  // aspect ratio 决定（img 用 w-full h-auto）。外壳 p-2 提供 8px 统一灰边，
+  // 任意比例的缩略图都能直接显示，不裁切不拉伸。
   return (
     <li>
       <button
@@ -231,7 +231,7 @@ function VenueComponentCard({
       >
         <div
           className={[
-            "flex size-[100px] cursor-pointer items-center justify-center rounded-[8px] transition-colors",
+            "w-full cursor-pointer rounded-[8px] p-2 transition-colors",
             selected ? "bg-[#E4E7EC]" : "bg-[#F5F6F8] hover:bg-[#EEF0F3]",
           ].join(" ")}
         >
@@ -239,7 +239,7 @@ function VenueComponentCard({
           <img
             src={component.thumbnail}
             alt={component.name}
-            className="size-[76px] object-cover"
+            className="block h-auto w-full object-contain"
             draggable={false}
           />
         </div>

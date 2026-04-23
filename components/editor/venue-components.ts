@@ -18,26 +18,35 @@ export interface VenueComponent {
   payload: { layers: PsdLayer[] };
 }
 
-/** 内联 SVG 占位缩略图：纯色方块（无圆角，无文字）。等真实上传数据接入前用这个。
- *  UI 侧会放在 76×76 固定 box 里统一显示，viewBox 直接铺满即可。 */
-function mockThumb(color: string): string {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" fill="${color}"/></svg>`;
+/** 内联 SVG 占位缩略图：纯色矩形。等真实上传数据接入前用这个，借助 SVG 的
+ *  viewBox 向 <img> 暴露 intrinsic aspect ratio，让外层 w-full / h-auto 能
+ *  按真实比例自适应高度，模拟"任意比例缩略图"的生产场景。 */
+function mockThumb(color: string, aspectW: number, aspectH: number): string {
+  const w = aspectW * 10;
+  const h = aspectH * 10;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${w} ${h}"><rect width="${w}" height="${h}" fill="${color}"/></svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }
 
 /**
  * 会场组件分组表：保持严格顺序（VenueComponentLibrary 按 groups[i].name 首次
- * 出现顺序渲染）。每组一个代表色，组内 A/B 两卡共用同色，以"同色 = 同组"
- * 强化视觉聚合。
+ * 出现顺序渲染）。每组一个代表色 + 一种缩略图比例（[w, h]），组内 A/B 两卡
+ * 共用同色同比例，以"同色 = 同组"强化视觉聚合；不同组用不同比例方便提前
+ * 看真实组件上线后的视觉效果。
  */
-const GROUPS: { name: string; short: string; color: string }[] = [
-  { name: "头图模块", short: "头图", color: "#FF5D6E" },
-  { name: "优惠券", short: "优惠券", color: "#FF8A3D" },
-  { name: "开礼包", short: "开礼包", color: "#FFC93D" },
-  { name: "膨半价节日神券", short: "膨半价", color: "#10B981" },
-  { name: "1对1急送", short: "1对1急送", color: "#3BA7FF" },
-  { name: "站台", short: "站台", color: "#6C63FF" },
-  { name: "免单", short: "免单", color: "#EC4899" },
+const GROUPS: {
+  name: string;
+  short: string;
+  color: string;
+  ratio: [number, number];
+}[] = [
+  { name: "头图模块", short: "头图", color: "#FF5D6E", ratio: [16, 9] },
+  { name: "优惠券", short: "优惠券", color: "#FF8A3D", ratio: [1, 1] },
+  { name: "开礼包", short: "开礼包", color: "#FFC93D", ratio: [1, 1] },
+  { name: "膨半价节日神券", short: "膨半价", color: "#10B981", ratio: [4, 3] },
+  { name: "1对1急送", short: "1对1急送", color: "#3BA7FF", ratio: [3, 1] },
+  { name: "站台", short: "站台", color: "#6C63FF", ratio: [1, 1] },
+  { name: "免单", short: "免单", color: "#EC4899", ratio: [2, 1] },
 ];
 
 /**
@@ -49,7 +58,7 @@ export const MOCK_VENUE_COMPONENTS: VenueComponent[] = GROUPS.flatMap((g) =>
     id: `venue_${g.short}_${suffix.toLowerCase()}`,
     name: `${g.short} ${suffix}`,
     group: g.name,
-    thumbnail: mockThumb(g.color),
+    thumbnail: mockThumb(g.color, g.ratio[0], g.ratio[1]),
     payload: { layers: [] },
   })),
 );
