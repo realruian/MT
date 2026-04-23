@@ -11,6 +11,7 @@ import { PropertyPanel } from "./property-panel";
 import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
 import { MOCK_VENUE_COMPONENTS } from "./venue-components";
+import { insertComponentIntoLayers } from "./insert-venue-component";
 
 export type SlotId = string;
 
@@ -66,6 +67,10 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   const [layers, setLayers] = useState<PsdLayer[]>([]);
   const [loadingLayers, setLoadingLayers] = useState(true);
   const [editState, setEditState] = useState<Record<string, Partial<PsdLayer>>>({});
+  // venue 画布上"来自会场组件库"的插入图层（纯前端 session 状态，刷新丢失）。
+  // 用 ref 持久化，以便切去别的 slot 再切回 venue 时能把这批图层重新拼回
+  // useEffect 拉到的 venue 原始 layers 末尾，不被 re-fetch 冲掉。
+  const venueInsertedLayersRef = useRef<PsdLayer[]>([]);
 
   const updateLayer = useCallback(
     (id: string, updates: Partial<PsdLayer>) => {
@@ -125,9 +130,13 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     setHistoryFuture(rest);
   }, [editState, historyFuture]);
 
-  // 拉图层 + 预加载字体；slot 切换时重新拉取并清空选中 / editState
+  // 拉图层 + 预加载字体；slot 切换时重新拉取并清空选中 / editState。
+  // venue 切回时把 venueInsertedLayersRef.current（当前 session 已插入的会场组件
+  // 图层）拼回到原始 venue layers 末尾，避免"切到别的 slot 再回来插入的组件
+  // 消失"这种 footgun。
   useEffect(() => {
     let cancelled = false;
+    const isVenue = activeSlot.id === "venue";
     async function fetchLayers() {
       setLoadingLayers(true);
       setLayers([]);
@@ -140,7 +149,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         if (!res.ok) return;
         const data: PsdLayer[] = await res.json();
         if (cancelled) return;
-        setLayers(data);
+        setLayers(isVenue ? [...data, ...venueInsertedLayersRef.current] : data);
         // 一次性预加载内置字体所有 variant
         await preloadAllFonts();
       } catch (err) {
@@ -153,7 +162,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeSlot.templateId]);
+  }, [activeSlot.templateId, activeSlot.id]);
 
   // slot 切换：清空历史栈，避免上个 slot 的快照被 undo 回到新 slot 上
   useEffect(() => {
@@ -218,11 +227,71 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     }
   }
 
-  // Step 1 占位：点击会场组件卡片仅置 active 态 + console.log，不做插入
+  // 点击会场组件卡片 → 克隆 payload.layers 追加到 venue 画布底部、按需拉长
+  // 画布、自动选中新组件根 group 让属性面板亮起来、同时保留卡片 active 态。
+  // 假定调用时 activeSlotId === "venue"（会场 tab 下点的组件，tab 切换逻辑已
+  // 保证这个恒等）；非 venue 场景只更新 active 视觉态不动画布。
   function handleSelectVenueComponent(id: string) {
     setSelectedVenueComponentId(id);
-    console.log("[VenueComponentCard] selected:", id);
+    const component = MOCK_VENUE_COMPONENTS.find((c) => c.id === id);
+    if (!component) return;
+    if (activeSlotId !== "venue") {
+      console.warn(
+        "[VenueComponentCard] skipped insert: activeSlotId is not venue",
+      );
+      return;
+    }
+    const venueSlot = slots.find((s) => s.id === "venue");
+    if (!venueSlot) return;
+
+    const { nextLayers, nextCanvasHeight, rootLayerId } =
+      insertComponentIntoLayers(
+        layers,
+        component,
+        venueSlot.height,
+        venueSlot.templateId,
+      );
+
+    // 只保留本次插入的新增那一段，追加到 ref（切走 / 切回 venue 都能拼回）
+    const insertedSlice = nextLayers.slice(layers.length);
+    venueInsertedLayersRef.current = [
+      ...venueInsertedLayersRef.current,
+      ...insertedSlice,
+    ];
+    setLayers(nextLayers);
+
+    if (nextCanvasHeight !== venueSlot.height) {
+      setSlots((prev) =>
+        prev.map((s) =>
+          s.id === "venue" ? { ...s, height: nextCanvasHeight } : s,
+        ),
+      );
+    }
+
+    // 选中新组件根：如果是 group 走模块选中（可整体拖动），否则走叶子选中
+    if (rootLayerId) {
+      const root = nextLayers.find((l) => l.id === rootLayerId);
+      if (root?.layerType === "group") {
+        setSelected({ moduleId: rootLayerId });
+      } else {
+        setSelected({ layerId: rootLayerId });
+      }
+    }
+    console.log("[VenueComponentCard] inserted:", id, "root:", rootLayerId);
   }
+
+  // beforeunload 提示：venue 当前 layers 含任一"来自组件库的图层"时挂载原生
+  // 离开确认（浏览器只显示默认文案，无法自定义），提醒用户刷新会丢失插入
+  useEffect(() => {
+    const hasInserted = layers.some((l) => l.sourceComponentId != null);
+    if (!hasInserted) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [layers]);
 
   function handleReplaceModule(moduleId: string) {
     console.log("[T6] replace module", moduleId);
@@ -293,15 +362,24 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         edits[layer.id] = { ...(edits[layer.id] ?? {}), ...patch };
       }
     }
+    // venue 画布上存在"来自组件库"的插入图层时，把当前完整 layers 送后端，
+    // 绕过后端按 templateId 从 DB 拉 layers 的默认路径（DB 里不包含插入图层）
+    const bodyPayload: Record<string, unknown> = {
+      templateId: slot.templateId,
+      edits,
+      canvasWidth: slot.width,
+      canvasHeight: slot.height,
+    };
+    if (
+      slot.id === "venue" &&
+      layers.some((l) => l.sourceComponentId != null)
+    ) {
+      bodyPayload.layers = layers;
+    }
     const res = await fetch("/api/export/psd", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        templateId: slot.templateId,
-        edits,
-        canvasWidth: slot.width,
-        canvasHeight: slot.height,
-      }),
+      body: JSON.stringify(bodyPayload),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: res.statusText }));

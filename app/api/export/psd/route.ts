@@ -7,6 +7,7 @@ import { getDb } from "@/lib/db";
 import { getPsdLayers } from "@/lib/templates-db";
 import { localRead } from "@/lib/local-storage";
 import { FONT_FAMILIES } from "@/lib/fonts";
+import type { PsdLayer } from "@/types/template";
 import path from "path";
 import fs from "fs";
 
@@ -21,6 +22,24 @@ interface LayerEdit {
   y?: number;
   /** 用户通过"删除模块"等操作在前端标记为隐藏；true=强制显示（暂无路径），false=强制隐藏 */
   visible?: boolean;
+}
+
+/** body.layers 基本合法性校验；失败时回退到 DB 拉取，绝不直接 400 阻断导出。 */
+function isValidLayers(arr: unknown): arr is PsdLayer[] {
+  if (!Array.isArray(arr)) return false;
+  return arr.every((l) => {
+    if (!l || typeof l !== "object") return false;
+    const r = l as Record<string, unknown>;
+    return (
+      typeof r.id === "string" &&
+      typeof r.x === "number" &&
+      typeof r.y === "number" &&
+      typeof r.width === "number" &&
+      typeof r.height === "number" &&
+      typeof r.zIndex === "number" &&
+      typeof r.layerType === "string"
+    );
+  });
 }
 
 interface ScannedFont {
@@ -170,6 +189,7 @@ function renderTextToPng(
   fontStyle: string,
   width: number,
   height: number,
+  textAlign?: string,
 ): Buffer {
   const italic = fontStyle === "italic" ? "italic " : "";
 
@@ -208,9 +228,20 @@ function renderTextToPng(
   ctx.font = fontStr;
   ctx.textBaseline = "top";
 
+  // textAlign: undefined / "left" / "start" 走原有"从 x=0 开始"的行为，保持向后兼容；
+  // "center" / "right" 时切换 ctx.textAlign + 起始 x 为中点 / 末端
+  let anchorX = 0;
+  if (textAlign === "center") {
+    ctx.textAlign = "center";
+    anchorX = canvasW / 2;
+  } else if (textAlign === "right") {
+    ctx.textAlign = "right";
+    anchorX = canvasW;
+  }
+
   let y = topPad;
   for (const line of lines) {
-    ctx.fillText(line, 0, y);
+    ctx.fillText(line, anchorX, y);
     y += lineH;
   }
 
@@ -220,12 +251,15 @@ function renderTextToPng(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { templateId, edits, canvasWidth, canvasHeight } = body as {
-      templateId: string;
-      edits: Record<string, LayerEdit>;
-      canvasWidth?: number;
-      canvasHeight?: number;
-    };
+    const { templateId, edits, canvasWidth, canvasHeight, layers: bodyLayers } =
+      body as {
+        templateId: string;
+        edits: Record<string, LayerEdit>;
+        canvasWidth?: number;
+        canvasHeight?: number;
+        /** 可选：前端直接下发完整 layers（会场插入组件后用这个分支，绕过 DB 拉取） */
+        layers?: unknown;
+      };
 
     if (!templateId) {
       return Response.json({ error: "Missing templateId" }, { status: 400 });
@@ -247,7 +281,21 @@ export async function POST(req: NextRequest) {
     const cw = canvasWidth ?? ((tpl.canvas_width ?? tpl.width) as number);
     const ch = canvasHeight ?? ((tpl.canvas_height ?? tpl.height) as number);
 
-    const allLayers = await getPsdLayers(templateId);
+    // 优先使用 body.layers（前端会场含插入组件时走这个分支）；校验失败
+    // 或未传时回退到 DB 按 templateId 拉取，保证导出至少能出会场原图。
+    let allLayers: PsdLayer[];
+    if (bodyLayers !== undefined) {
+      if (isValidLayers(bodyLayers)) {
+        allLayers = bodyLayers;
+      } else {
+        console.warn(
+          "[export/psd] invalid layers payload, fallback to DB by templateId",
+        );
+        allLayers = await getPsdLayers(templateId);
+      }
+    } else {
+      allLayers = await getPsdLayers(templateId);
+    }
 
     // 先收集被 editState 标记为 visible=false 的所有图层 id（主要是 group），
     // 用于下面对子层做级联隐藏
@@ -282,17 +330,28 @@ export async function POST(req: NextRequest) {
 
       let inputBuffer: Buffer | null = null;
 
-      if (layer.layerType === "text" && isTextEdited) {
-        const text = edit.textContent ?? layer.textContent ?? "";
-        const fontSize = edit.fontSize ?? layer.fontSize ?? 24;
-        const fontColor = edit.fontColor ?? layer.fontColor ?? "#000000";
-        const fontFamily = edit.fontFamily ?? layer.fontFamily ?? "sans-serif";
+      // 两种情况都走服务端文字渲染：
+      // 1) text layer 被 editState 改过（原有路径）
+      // 2) text layer 没有 imageUrl 但自带 textContent（会场组件插入的 mock
+      //    text layer 走这条，DB 原生 text layer 一般都有 imageUrl raster 不会命中）
+      const hasImageUrl = !!(edit?.imageUrl ?? layer.imageUrl);
+      const textNoImage =
+        layer.layerType === "text" &&
+        !hasImageUrl &&
+        !!(edit?.textContent ?? layer.textContent);
+
+      if (layer.layerType === "text" && (isTextEdited || textNoImage)) {
+        const text = edit?.textContent ?? layer.textContent ?? "";
+        const fontSize = edit?.fontSize ?? layer.fontSize ?? 24;
+        const fontColor = edit?.fontColor ?? layer.fontColor ?? "#000000";
+        const fontFamily = edit?.fontFamily ?? layer.fontFamily ?? "sans-serif";
         const fontWeight = edit?.fontWeight ?? layer.fontWeight ?? "normal";
         const fontStyleVal = layer.fontStyle ?? "normal";
+        const textAlignVal = layer.textAlign;
 
         let textPng = renderTextToPng(
           text, fontSize, fontColor, fontFamily, fontWeight, fontStyleVal,
-          layer.width, layer.height,
+          layer.width, layer.height, textAlignVal,
         );
 
         const rotation = layer.rotation ?? 0;

@@ -49,4 +49,11 @@ export interface PsdLayer {
   parentId?: string | null;
   /** 运行时字段：由前端按 parentId 聚合后附加，DB 不存储 */
   children?: PsdLayer[];
+  /**
+   * 运行时字段：若该图层由"会场组件库"通过 insertVenueComponent 克隆而来，
+   * 这里记录源 VenueComponent.id（以"venue_<short>_<a|b>"开头）。DB 不存储；
+   * 仅用于 beforeunload 判定"画布存在未持久化的组件插入"以及导出时把完整
+   * layers 数组下发到 /api/export/psd。
+   */
+  sourceComponentId?: string;
 }
