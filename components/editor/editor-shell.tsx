@@ -5,11 +5,12 @@ import type { PsdLayer, Template } from "@/types/template";
 import { preloadAllFonts } from "@/lib/fonts";
 import type { SlotPreset, SlotSize } from "@/lib/slot-presets";
 import { EditorTopbar } from "./editor-topbar";
-import { SlotPanel } from "./slot-panel";
+import { SlotPanel, type LeftPanelTab } from "./slot-panel";
 import { CanvasStage } from "./canvas-stage";
 import { PropertyPanel } from "./property-panel";
 import { ExtendModal } from "./extend-modal";
 import { ExportModal } from "./export-modal";
+import { MOCK_VENUE_COMPONENTS } from "@/lib/venue-components";
 
 export type SlotId = string;
 
@@ -47,6 +48,14 @@ export function EditorShell({ template, activity }: EditorShellProps) {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const activeSlot = slots.find((s) => s.id === activeSlotId) ?? slots[0];
+
+  // 左侧面板 tab 状态：会场（组件库）/ 资源位（多尺寸 slot 列表）。
+  // 默认停在"会场"tab 与默认 activeSlotId="venue" 保持一致的画布入口。
+  const [leftTab, setLeftTab] = useState<LeftPanelTab>("venue");
+  // 会场 tab 下的组件卡片 active 视觉态；Step 1 仅用于高亮，不做插入
+  const [selectedComponentId, setSelectedComponentId] = useState<string | null>(
+    null,
+  );
 
   // 二级选中：moduleId 模块级 / layerId 元素级（layerId 必须配合 moduleId）
   const [selected, setSelected] = useState<
@@ -194,6 +203,27 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     return () => window.removeEventListener("keydown", onKey);
   }, [undo, redo]);
 
+  // 切换左侧 tab：会场→强制画布回到 venue；资源位→若当前是 venue 则跳到列表第一个非 venue slot。
+  // 任何 tab 切换都清掉选中避免混淆属性面板状态。
+  function handleTabChange(next: LeftPanelTab) {
+    setLeftTab(next);
+    setSelected(null);
+    if (next === "venue") {
+      setActiveSlotId("venue");
+      return;
+    }
+    if (activeSlotId === "venue") {
+      const firstExtended = slots.find((s) => s.id !== "venue");
+      if (firstExtended) setActiveSlotId(firstExtended.id);
+    }
+  }
+
+  // Step 1 占位：仅记录 active 态 + console.log，不做插入
+  function handleSelectComponent(id: string) {
+    setSelectedComponentId(id);
+    console.log("[VenueComponent] selected:", id);
+  }
+
   function handleReplaceModule(moduleId: string) {
     console.log("[T6] replace module", moduleId);
   }
@@ -215,6 +245,8 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     if (newSlots.length > 0) {
       setActiveSlotId(newSlots[0].id);
       setSelected(null);
+      // 刚拓展出的资源位应立即在"资源位"tab 下可见
+      setLeftTab("slots");
     }
     setExtendModalOpen(false);
   }
@@ -338,6 +370,11 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             activeSlotId={activeSlotId}
             onSelect={handleSelectSlot}
             onDelete={handleDeleteSlot}
+            tab={leftTab}
+            onTabChange={handleTabChange}
+            components={MOCK_VENUE_COMPONENTS}
+            selectedComponentId={selectedComponentId}
+            onSelectComponent={handleSelectComponent}
           />
           <CanvasStage
             template={template}
