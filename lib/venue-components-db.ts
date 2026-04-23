@@ -101,6 +101,97 @@ export async function createVenueComponent(
   return created;
 }
 
+export interface UpdateVenueComponentInput {
+  name?: string;
+  groupName?: string;
+  thumbnailUrl?: string;
+  payload?: { layers: PsdLayer[] };
+  width?: number;
+  height?: number;
+  sourcePsdUrl?: string | null;
+  sortOrder?: number;
+}
+
+/**
+ * 部分更新会场组件。每字段独立 UPDATE（项目约定，避免 COALESCE 绑定风险），
+ * 所有成功分支都顺带刷新 updated_at。调用前自行校验字段合法性。
+ * 返回更新后的完整行，若 id 不存在返回 null。
+ */
+export async function updateVenueComponent(
+  id: string,
+  input: UpdateVenueComponentInput,
+): Promise<VenueComponentRecord | null> {
+  const sql = getDb();
+  const existing = await getVenueComponent(id);
+  if (!existing) return null;
+
+  if (input.name !== undefined) {
+    await sql`UPDATE venue_components SET name = ${input.name} WHERE id = ${id}`;
+  }
+  if (input.groupName !== undefined) {
+    await sql`UPDATE venue_components SET group_name = ${input.groupName} WHERE id = ${id}`;
+  }
+  if (input.thumbnailUrl !== undefined) {
+    await sql`UPDATE venue_components SET thumbnail_url = ${input.thumbnailUrl} WHERE id = ${id}`;
+  }
+  if (input.payload !== undefined) {
+    const payloadJson = JSON.stringify(input.payload);
+    await sql`UPDATE venue_components SET payload_json = ${payloadJson} WHERE id = ${id}`;
+  }
+  if (input.width !== undefined) {
+    await sql`UPDATE venue_components SET width = ${input.width} WHERE id = ${id}`;
+  }
+  if (input.height !== undefined) {
+    await sql`UPDATE venue_components SET height = ${input.height} WHERE id = ${id}`;
+  }
+  if (input.sourcePsdUrl !== undefined) {
+    await sql`UPDATE venue_components SET source_psd_url = ${input.sourcePsdUrl ?? null} WHERE id = ${id}`;
+  }
+  if (input.sortOrder !== undefined) {
+    await sql`UPDATE venue_components SET sort_order = ${input.sortOrder} WHERE id = ${id}`;
+  }
+
+  const now = Date.now();
+  await sql`UPDATE venue_components SET updated_at = ${now} WHERE id = ${id}`;
+
+  return getVenueComponent(id);
+}
+
+/**
+ * 按给定顺序重排同一分组内的 sort_order（下标即新 sort_order）。
+ * - 只处理传入的 id；同组里没传的行保持原 sort_order 不变
+ * - 若列表中某个 id 对应的组件真实 group 与 groupName 不一致，静默跳过
+ *   （防御性：拖拽 UI 的 state 偶尔会滞后）
+ * 一次性事务，任何一行失败整体回滚。
+ */
+export async function reorderVenueComponents(
+  groupName: string,
+  orderedIds: string[],
+): Promise<void> {
+  if (orderedIds.length === 0) return;
+  const sql = getDb();
+  const db = sql.raw();
+  const now = Date.now();
+
+  const getGroup = db.prepare(
+    "SELECT group_name FROM venue_components WHERE id = ?",
+  );
+  const update = db.prepare(
+    "UPDATE venue_components SET sort_order = ?, updated_at = ? WHERE id = ?",
+  );
+
+  const txn = db.transaction((ids: string[]) => {
+    for (let i = 0; i < ids.length; i++) {
+      const id = ids[i];
+      const row = getGroup.get(id) as { group_name: string } | undefined;
+      if (!row) continue;
+      if (row.group_name !== groupName) continue;
+      update.run(i, now, id);
+    }
+  });
+  txn(orderedIds);
+}
+
 /**
  * 删组件 = 删 DB 行 + 删 blob 目录下的 PSD / 缩略图 / layer 子目录。
  * 文件删除失败（文件不存在 / 权限等）只打 warn，DB 删除成功就算完成，

@@ -1,8 +1,4 @@
 import { NextRequest } from "next/server";
-import path from "path";
-import sharp from "sharp";
-import { parsePsdBuffer } from "@/lib/psd-parser";
-import { localPut } from "@/lib/local-storage";
 import {
   createVenueComponent,
   type CreateVenueComponentInput,
@@ -11,32 +7,21 @@ import {
   isVenueComponentGroup,
   VENUE_COMPONENT_GROUPS,
 } from "@/lib/venue-component-groups";
-import { renderPsdToPng } from "@/lib/render-psd-to-png";
-import type { PsdLayer } from "@/types/template";
-
-/** 会场组件标准宽度（与编辑器 VENUE_CONTENT_WIDTH 对齐） */
-const VENUE_COMPONENT_WIDTH = 702;
-/** PSD 文件大小上限 */
-const MAX_PSD_SIZE = 5 * 1024 * 1024;
-/** 用户自上传缩略图大小上限 */
-const MAX_THUMB_SIZE = 1 * 1024 * 1024;
-/** 自动生成缩略图的目标宽度 */
-const AUTO_THUMB_WIDTH = 200;
+import {
+  buildVenueComponentFromPsd,
+  generateAutoThumbnail,
+  storeUserThumbnail,
+  nameCharLength,
+  PsdWidthMismatchError,
+  MAX_PSD_SIZE,
+  MAX_THUMB_SIZE,
+  VENUE_COMPONENT_WIDTH,
+} from "@/lib/venue-component-psd";
 
 function generateId(): string {
   const now = Date.now().toString(36);
   const rand = Math.random().toString(36).slice(2, 6);
   return `venue_${now}_${rand}`;
-}
-
-function generateLayerId(index: number): string {
-  const rand = Math.random().toString(36).slice(2, 8);
-  return `layer_${index}_${rand}`;
-}
-
-function nameCharLength(s: string): number {
-  // 简单按 JS 字符串长度计数；中文在 UI 计 1 字，够用
-  return Array.from(s).length;
 }
 
 export async function POST(req: NextRequest) {
@@ -52,10 +37,7 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "请选择 PSD 文件" }, { status: 400 });
     }
     if (!psdFile.name.toLowerCase().endsWith(".psd")) {
-      return Response.json(
-        { error: "仅支持 .psd 文件" },
-        { status: 400 },
-      );
+      return Response.json({ error: "仅支持 .psd 文件" }, { status: 400 });
     }
     if (psdFile.size > MAX_PSD_SIZE) {
       return Response.json(
@@ -91,127 +73,37 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // --- 存 PSD 原文件 ---------------------------------------------------
+    // --- 解析 PSD + 存 blob（含宽度校验）--------------------------------
     const componentId = generateId();
-    const psdBuffer = await psdFile.arrayBuffer();
-    const psdExt = path.extname(psdFile.name) || ".psd";
-    const psdBlob = await localPut(
-      `venue-components/${componentId}${psdExt}`,
-      new File([psdBuffer], psdFile.name, {
-        type: "application/octet-stream",
-      }),
-    );
-
-    // --- 解析 PSD + 校验宽度 --------------------------------------------
-    const parsed = await parsePsdBuffer(psdBuffer);
-    if (parsed.width !== VENUE_COMPONENT_WIDTH) {
-      return Response.json(
-        {
-          error: `会场组件宽度必须为 ${VENUE_COMPONENT_WIDTH}px，当前 PSD 宽度为 ${parsed.width}px，请调整后重新上传`,
-        },
-        { status: 400 },
-      );
-    }
-
-    // --- 坐标归零 --------------------------------------------------------
-    // 所有 layer 的 x/y 同时减去最小值，让组件从 (0, 0) 开始；component
-    // height 取归零后 max(y + height)
-    let minX = Infinity;
-    let minY = Infinity;
-    for (const l of parsed.layers) {
-      if (l.x < minX) minX = l.x;
-      if (l.y < minY) minY = l.y;
-    }
-    if (!isFinite(minX)) minX = 0;
-    if (!isFinite(minY)) minY = 0;
-
-    // --- 组装 PsdLayer 记录（同时存 layer raster 到 blob）--------------
-    const layerIds: string[] = parsed.layers.map((_, i) => generateLayerId(i));
-    const psdLayers: PsdLayer[] = [];
-
-    for (let i = 0; i < parsed.layers.length; i++) {
-      const l = parsed.layers[i];
-      const layerId = layerIds[i];
-
-      let imageUrl: string | undefined;
-      if (l.type !== "group" && l.imageBuffer) {
-        const up = await localPut(
-          `venue-components/${componentId}/${layerId}.png`,
-          Buffer.from(l.imageBuffer),
-        );
-        imageUrl = up.url;
-      }
-
-      const parentId =
-        typeof l.parentIndex === "number"
-          ? (layerIds[l.parentIndex] ?? null)
-          : null;
-
-      psdLayers.push({
-        id: layerId,
-        templateId: componentId,
-        name: l.name,
-        layerType: l.type,
-        zIndex: l.zIndex,
-        x: l.x - minX,
-        y: l.y - minY,
-        width: l.width,
-        height: l.height,
-        visible: l.visible,
-        opacity: l.opacity,
-        rotation: l.rotation,
-        imageUrl,
-        textContent: l.text?.content,
-        fontFamily: l.text?.fontFamily,
-        fontSize: l.text?.fontSize,
-        fontColor: l.text?.color,
-        fontWeight: l.text?.fontWeight,
-        fontStyle: l.text?.fontStyle,
-        textAlign: l.text?.textAlign,
-        lineHeight: l.text?.lineHeight,
-        locked: false,
-        parentId,
+    let built;
+    try {
+      built = await buildVenueComponentFromPsd({
+        componentId,
+        psdBuffer: await psdFile.arrayBuffer(),
+        psdFileName: psdFile.name,
       });
+    } catch (err) {
+      if (err instanceof PsdWidthMismatchError) {
+        return Response.json({ error: err.message }, { status: 400 });
+      }
+      throw err;
     }
-
-    // --- 计算组件 height --------------------------------------------------
-    let componentHeight = 0;
-    for (const l of psdLayers) {
-      if (l.layerType === "group") continue;
-      const b = l.y + l.height;
-      if (b > componentHeight) componentHeight = b;
-    }
-    if (componentHeight === 0) componentHeight = parsed.height; // 兜底
 
     // --- 缩略图 -----------------------------------------------------------
     let thumbnailUrl: string;
     if (thumbnailFile) {
-      // 用户上传路径：直接存
-      const thumbExt = path.extname(thumbnailFile.name).toLowerCase() || ".png";
-      const thumbBuffer = await thumbnailFile.arrayBuffer();
-      const up = await localPut(
-        `venue-components/${componentId}-thumb${thumbExt}`,
-        new File([thumbBuffer], thumbnailFile.name, {
-          type: thumbnailFile.type || "image/png",
-        }),
-      );
+      const up = await storeUserThumbnail({
+        componentId,
+        file: thumbnailFile,
+      });
       thumbnailUrl = up.url;
     } else {
-      // 自动生成：先按组件原尺寸合成全图，再 sharp 缩到 AUTO_THUMB_WIDTH
       try {
-        const fullPng = await renderPsdToPng({
-          layers: psdLayers,
-          canvasWidth: VENUE_COMPONENT_WIDTH,
-          canvasHeight: componentHeight,
+        const up = await generateAutoThumbnail({
+          componentId,
+          layers: built.layers,
+          height: built.height,
         });
-        const resized = await sharp(fullPng)
-          .resize({ width: AUTO_THUMB_WIDTH })
-          .png()
-          .toBuffer();
-        const up = await localPut(
-          `venue-components/${componentId}-thumb.png`,
-          resized,
-        );
         thumbnailUrl = up.url;
       } catch (err) {
         console.error(
@@ -234,10 +126,10 @@ export async function POST(req: NextRequest) {
       name,
       groupName: group,
       thumbnailUrl,
-      payload: { layers: psdLayers },
+      payload: { layers: built.layers },
       width: VENUE_COMPONENT_WIDTH,
-      height: componentHeight,
-      sourcePsdUrl: psdBlob.url,
+      height: built.height,
+      sourcePsdUrl: built.sourcePsdUrl,
     };
     const created = await createVenueComponent(input);
 
