@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Redo2, Undo2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
 import { VENUE_CANVAS_ID, type Slot } from "./editor-shell";
 import { extractBlocks } from "./venue-blocks";
@@ -33,6 +33,12 @@ interface CanvasStageProps {
   scrollRef?: React.MutableRefObject<HTMLDivElement | null>;
   /** editor-shell 持有：实时同步当前 scale，供坐标转换 */
   scaleRef?: React.MutableRefObject<number>;
+  /** 是否可撤销（historyPast 非空） */
+  canUndo: boolean;
+  /** 是否可重做（historyFuture 非空） */
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
 }
 
 export function CanvasStage({
@@ -48,7 +54,13 @@ export function CanvasStage({
   onReorderBlock,
   scrollRef,
   scaleRef,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
 }: CanvasStageProps) {
+  // Mac 平台判断，用于 tooltip 快捷键显示
+  const isMac = typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
   // 画布尺寸来自当前 slot —— 一键拓展生成的新 slot 会有不同的 width/height，
   // 图层仍按 PSD 原始坐标渲染，超出画布的部分会被 overflow: hidden 裁掉。
   const cw = slot.width;
@@ -923,10 +935,33 @@ export function CanvasStage({
         </div>
       </div>
 
-      {/* 尺寸 + 缩放比例浮窗：absolute 吸附在 viewport 底部，不随画布滚动 */}
+      {/* 撤销/重做按钮 + 尺寸胶囊：absolute 吸附在 viewport 顶部居中，不随画布滚动 */}
       {!loading && (
-        <div className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-[11px] text-[#999] shadow-sm backdrop-blur">
-          {cw} × {ch} · {Math.round(scale * 100)}%
+        <div className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 flex items-center gap-2 z-40">
+          {/* 撤销 */}
+          <button
+            type="button"
+            onClick={onUndo}
+            disabled={!canUndo}
+            title={isMac ? "撤销 (⌘Z)" : "撤销 (Ctrl+Z)"}
+            className="pointer-events-auto flex size-8 items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-sm text-[#11192D] transition-colors hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Undo2 className="size-4" />
+          </button>
+          {/* 重做 */}
+          <button
+            type="button"
+            onClick={onRedo}
+            disabled={!canRedo}
+            title={isMac ? "重做 (⌘⇧Z)" : "重做 (Ctrl+Shift+Z)"}
+            className="pointer-events-auto flex size-8 items-center justify-center rounded-full bg-white/90 backdrop-blur shadow-sm text-[#11192D] transition-colors hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            <Redo2 className="size-4" />
+          </button>
+          {/* 尺寸胶囊 */}
+          <div className="rounded-full border border-[#e5e5e5] bg-white/90 px-3 py-1 text-[11px] text-[#999] shadow-sm backdrop-blur">
+            {cw} × {ch} · {Math.round(scale * 100)}%
+          </div>
         </div>
       )}
     </div>

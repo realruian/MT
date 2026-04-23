@@ -181,6 +181,12 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     setHistoryFuture(rest);
   }, [editState, layers, historyFuture]);
 
+  // canUndo/canRedo：historyPastRef 是 ref（不触发 rerender），
+  // 但每次入栈/出栈都伴随 setHistoryFuture 或 setEditState/setLayers 的 state 更新，
+  // 触发 rerender 时 ref 已是最新值，直接读取即可。
+  const canUndo = historyPastRef.current.length > 0;
+  const canRedo = historyFuture.length > 0;
+
   // 编辑器字体下拉数据：运行时从 /api/fonts/families 拉取 EXPOSED 精选家族。
   // 独立于 slot 切换的 useEffect，整个编辑器会话只拉一次；拉到后立刻
   // preloadFonts 到 document.fonts，供画布内文字实时渲染。失败不阻塞
@@ -615,6 +621,10 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             onReorderBlock={handleReorderBlock}
             scrollRef={canvasScrollRef}
             scaleRef={canvasScaleRef}
+            canUndo={canUndo}
+            canRedo={canRedo}
+            onUndo={undo}
+            onRedo={redo}
           />
           <PropertyPanel
             template={template}
