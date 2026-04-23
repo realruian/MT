@@ -1,10 +1,9 @@
 import sharp from "sharp";
 import { createCanvas, GlobalFonts } from "@napi-rs/canvas";
-import * as fontkit from "fontkit";
-import type { Font } from "fontkit";
 import path from "path";
 import fs from "fs";
-import { FONT_FAMILIES } from "./fonts";
+import { getFontScan } from "./font-scan";
+import { familyToAggregationKey, normalizeWeight } from "./font-aggregation";
 import { localRead } from "./local-storage";
 import type { PsdLayer } from "@/types/template";
 
@@ -41,115 +40,72 @@ export interface RenderPsdOptions {
 }
 
 // --- 字体注册（一次性，进程内幂等） --------------------------------------
+//
+// 注册全量 public/fonts/ 下的所有 face 到 GlobalFonts，并构建
+// FAMILY_WEIGHT_TO_PS 映射。数据来源是 lib/font-scan.ts 的缓存扫描结果，
+// 所以这里不再重复 fontkit 扫描。
+//
+// 映射 key 的选择：用 `familyToAggregationKey(face.family) | normalizeWeight(...)`
+// 作为 key —— 前端下拉选中的 family 也是同一套聚合 key，两端自然对齐。
+// 非 EXPOSED 白名单的家族也入表，所以 resolver 对任意已扫描字体都能命中。
 
-interface ScannedFont {
-  file: string;
-  postscriptName: string;
-  familyName: string;
-}
-
-function scanFontDir(dir: string): ScannedFont[] {
-  if (!fs.existsSync(dir)) return [];
-  const results: ScannedFont[] = [];
-  for (const entry of fs.readdirSync(dir)) {
-    if (entry.startsWith(".")) continue;
-    const full = path.join(dir, entry);
-    const stat = fs.statSync(full);
-    if (stat.isDirectory()) {
-      results.push(...scanFontDir(full));
-      continue;
-    }
-    const ext = path.extname(entry).toLowerCase();
-    if (ext !== ".ttf" && ext !== ".otf") continue;
-    try {
-      const parsed = fontkit.openSync(full);
-      const faces: Font[] =
-        "fonts" in parsed && Array.isArray(parsed.fonts)
-          ? parsed.fonts
-          : [parsed as Font];
-      for (const f of faces) {
-        if (!f.postscriptName) continue;
-        results.push({
-          file: full,
-          postscriptName: f.postscriptName,
-          familyName: f.familyName ?? f.postscriptName,
-        });
-      }
-    } catch (err) {
-      console.warn(
-        `[fonts] scan failed for ${entry}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
-  }
-  return results;
-}
-
-function registerLocalFonts() {
-  const fontsDir = path.join(process.cwd(), "public", "fonts");
-  const scanned = scanFontDir(fontsDir);
-  const registered: ScannedFont[] = [];
-  for (const font of scanned) {
-    try {
-      GlobalFonts.registerFromPath(font.file, font.postscriptName);
-      registered.push(font);
-    } catch (err) {
-      console.warn(
-        `[fonts] register failed for ${font.postscriptName}:`,
-        err instanceof Error ? err.message : err,
-      );
-    }
-  }
-  console.log(`[fonts] registered ${registered.length} fonts:`);
-  for (const r of registered) {
-    console.log(
-      `  ${r.postscriptName}  (family: ${r.familyName}, file: ${path.basename(r.file)})`,
-    );
-  }
-}
-
-/** 前端 family+weight → 实际 PS 名；buildFamilyWeightMap 后用 */
 const FAMILY_WEIGHT_TO_PS = new Map<string, string>();
 
-function buildFamilyWeightMap() {
-  FAMILY_WEIGHT_TO_PS.clear();
-  for (const f of FONT_FAMILIES) {
-    for (const v of f.variants) {
-      const abs = path.join(process.cwd(), "public", v.url);
-      if (!fs.existsSync(abs)) {
-        console.warn(`[fonts] missing file for ${f.family}/${v.weight}: ${abs}`);
-        continue;
-      }
+let fontsRegistered = false;
+let fontsRegisteringPending: Promise<void> | null = null;
+
+export async function ensureFontsRegistered(): Promise<void> {
+  if (fontsRegistered) return;
+  if (fontsRegisteringPending) return fontsRegisteringPending;
+  fontsRegisteringPending = (async () => {
+    const scan = await getFontScan();
+
+    let registeredCount = 0;
+    for (const face of scan.faces) {
       try {
-        const parsed = fontkit.openSync(abs);
-        const face: Font =
-          "fonts" in parsed && Array.isArray(parsed.fonts)
-            ? parsed.fonts[0]
-            : (parsed as Font);
-        if (face.postscriptName) {
-          FAMILY_WEIGHT_TO_PS.set(
-            `${f.family}|${v.weight}`,
-            face.postscriptName,
-          );
-        }
+        GlobalFonts.registerFromPath(face.filePath, face.postscriptName);
+        registeredCount++;
       } catch (err) {
         console.warn(
-          `[fonts] resolve PS name failed for ${f.family}/${v.weight}:`,
+          `[fonts] register failed for ${face.postscriptName}:`,
           err instanceof Error ? err.message : err,
         );
       }
     }
-  }
-  console.log(`[fonts] family+weight map (${FAMILY_WEIGHT_TO_PS.size} entries):`);
-  for (const [k, v] of FAMILY_WEIGHT_TO_PS) console.log(`  ${k}  →  ${v}`);
+
+    FAMILY_WEIGHT_TO_PS.clear();
+    for (const face of scan.faces) {
+      if (!face.family) continue;
+      const aggKey = familyToAggregationKey(face.family);
+      const weight = normalizeWeight(
+        face.family,
+        face.subfamily,
+        face.usWeightClass,
+        face.postscriptName,
+      );
+      const key = `${aggKey}|${weight}`;
+      if (FAMILY_WEIGHT_TO_PS.has(key)) continue; // 保留首个
+      FAMILY_WEIGHT_TO_PS.set(key, face.postscriptName);
+    }
+
+    console.log(
+      `[fonts] registered ${registeredCount}/${scan.faceCount} faces; FAMILY_WEIGHT_TO_PS built with ${FAMILY_WEIGHT_TO_PS.size} entries`,
+    );
+    fontsRegistered = true;
+    fontsRegisteringPending = null;
+  })();
+  return fontsRegisteringPending;
 }
 
-let fontsRegistered = false;
-export function ensureFontsRegistered() {
-  if (fontsRegistered) return;
-  registerLocalFonts();
-  buildFamilyWeightMap();
-  fontsRegistered = true;
+/**
+ * 供 POST /api/admin/fonts/rescan 用：下次 ensureFontsRegistered 会重新扫描 +
+ * 重注册 + 重构 map。不真的从 GlobalFonts 卸载（@napi-rs/canvas 没暴露
+ * unregister，重复注册同 PS 名无害），只重置内部状态让下次进入重建逻辑。
+ */
+export function invalidateFontRegistration(): void {
+  fontsRegistered = false;
+  fontsRegisteringPending = null;
+  FAMILY_WEIGHT_TO_PS.clear();
 }
 
 // --- 图片 / 文字渲染 helper ----------------------------------------------
@@ -191,7 +147,16 @@ function renderTextToPng(
   textAlign?: string,
 ): Buffer {
   const italic = fontStyle === "italic" ? "italic " : "";
+  // family 解析优先级（从高到低）：
+  //   1. aggregationKey|weight —— 前端下拉选中的 family 本就是 aggKey，直接命中
+  //   2. aggregationKey|400 —— 历史 PSD weight 字段脏（PR1 之前全部默认 400）
+  //   3. rawFamily|weight / rawFamily|400 —— 老 psd-parser 解析出的 fontkit
+  //      原 family 名兜底（如 "MiSans Thin" 不经聚合也能落到对应 face）
+  //   4. rawFamily —— 当 PSD 里直接存了 PS 名时交给 canvas 自己匹配
+  const aggKey = familyToAggregationKey(fontFamily);
   const psName =
+    FAMILY_WEIGHT_TO_PS.get(`${aggKey}|${fontWeight}`) ??
+    FAMILY_WEIGHT_TO_PS.get(`${aggKey}|400`) ??
     FAMILY_WEIGHT_TO_PS.get(`${fontFamily}|${fontWeight}`) ??
     FAMILY_WEIGHT_TO_PS.get(`${fontFamily}|400`) ??
     fontFamily;
@@ -262,7 +227,7 @@ function parseHexToRgb(
  *   走服务端字体渲染；text layer 已被 edits 改动走同一分支
  */
 export async function renderPsdToPng(options: RenderPsdOptions): Promise<Buffer> {
-  ensureFontsRegistered();
+  await ensureFontsRegistered();
 
   const { layers, edits = {}, canvasWidth: cw, canvasHeight: ch, bgColor } = options;
 

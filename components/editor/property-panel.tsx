@@ -4,7 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
 import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
-import { FONT_FAMILIES } from "@/lib/fonts";
+import type { FontFamilyDef } from "@/lib/fonts";
 
 interface PropertyPanelProps {
   template: Template;
@@ -20,6 +20,8 @@ interface PropertyPanelProps {
   canvasBgColor: string;
   /** 改画布背景色；editor-shell 用 onUpdate(VENUE_CANVAS_ID, { fontColor }) 包装 */
   onCanvasBgColorChange: (hex: string) => void;
+  /** 运营字体下拉的家族列表，由 editor-shell 一次性 fetch 后传下来 */
+  fontFamilies: FontFamilyDef[];
 }
 
 type StrKey =
@@ -58,6 +60,7 @@ export function PropertyPanel({
   isVenue,
   canvasBgColor,
   onCanvasBgColorChange,
+  fontFamilies,
 }: PropertyPanelProps) {
   const canvasW = template.canvasWidth ?? template.width;
   const canvasH = template.canvasHeight ?? template.height;
@@ -227,7 +230,13 @@ export function PropertyPanel({
         <>
           <section>
             <h3 className="mb-3 text-[12px] text-[#11192D]">文字</h3>
-            <TextFields layer={selectedLayer} eff={eff} setStr={setStr} setNum={setNum} />
+            <TextFields
+              layer={selectedLayer}
+              eff={eff}
+              setStr={setStr}
+              setNum={setNum}
+              fontFamilies={fontFamilies}
+            />
           </section>
           <section>
             <h3 className="mb-3 text-[12px] text-[#11192D]">填充颜色</h3>
@@ -441,11 +450,13 @@ function TextFields({
   eff,
   setStr,
   setNum,
+  fontFamilies,
 }: {
   layer: PsdLayer;
   eff: EffFn;
   setStr: (l: PsdLayer, k: StrKey, v: string) => void;
   setNum: (l: PsdLayer, k: NumKey, v: string) => void;
+  fontFamilies: FontFamilyDef[];
 }) {
   const fontFamily = (eff(layer, "fontFamily") as string | undefined) ?? "";
   const fontWeight = normalizeWeight(eff(layer, "fontWeight") as string | undefined);
@@ -454,10 +465,12 @@ function TextFields({
   const letterSpacing = eff(layer, "letterSpacing") as number | undefined;
   const textAlign = (eff(layer, "textAlign") as string | undefined) ?? "left";
 
-  // 字体下拉：若当前字体不在 FONT_FAMILIES（脏数据），前置一条"（未安装）"保留项
-  const familyInList = FONT_FAMILIES.some((f) => f.family === fontFamily);
+  // 字体下拉：当前字体不在精选白名单（可能是 PSD 引用的冷门字体，或字体
+  // 列表还没加载完）→ 前置一条"（未安装）"占位保留项。服务端导出仍由
+  // fontkit 全量注册层命中，不会回退，所以这里只是 UI 提示。
+  const familyInList = fontFamilies.some((f) => f.family === fontFamily);
   const familyOptions = familyInList
-    ? FONT_FAMILIES
+    ? fontFamilies
     : [
         {
           family: fontFamily,
@@ -466,11 +479,11 @@ function TextFields({
             : "（系统默认）",
           variants: [],
         },
-        ...FONT_FAMILIES,
+        ...fontFamilies,
       ];
 
   // 字重下拉：根据当前字体的 variants 动态；若 DB 值不在 variants 内，前置"（不支持）"保留项
-  const currentFamilyObj = FONT_FAMILIES.find((f) => f.family === fontFamily);
+  const currentFamilyObj = fontFamilies.find((f) => f.family === fontFamily);
   const availableVariants = currentFamilyObj?.variants ?? [];
   const weightInVariants = availableVariants.some((v) => v.weight === fontWeight);
   const weightOptions = weightInVariants

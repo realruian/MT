@@ -2,7 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { PsdLayer, Template } from "@/types/template";
-import { preloadAllFonts } from "@/lib/fonts";
+import {
+  fetchExposedFamilies,
+  preloadFonts,
+  type FontFamilyDef,
+} from "@/lib/fonts";
 import type { SlotPreset, SlotSize } from "@/lib/slot-presets";
 import { EditorTopbar } from "./editor-topbar";
 import { SlotPanel, type LeftPanelTab } from "./slot-panel";
@@ -152,7 +156,29 @@ export function EditorShell({ template, activity }: EditorShellProps) {
     setHistoryFuture(rest);
   }, [editState, historyFuture]);
 
-  // 拉图层 + 预加载字体；slot 切换时重新拉取并清空选中 / editState。
+  // 编辑器字体下拉数据：运行时从 /api/fonts/families 拉取 EXPOSED 精选家族。
+  // 独立于 slot 切换的 useEffect，整个编辑器会话只拉一次；拉到后立刻
+  // preloadFonts 到 document.fonts，供画布内文字实时渲染。失败不阻塞
+  // 编辑器其它功能——字体数组保持空数组，下拉显示"（未安装）"占位。
+  const [fontFamilies, setFontFamilies] = useState<FontFamilyDef[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const families = await fetchExposedFamilies();
+        if (cancelled) return;
+        setFontFamilies(families);
+        await preloadFonts(families);
+      } catch (err) {
+        console.error("[fonts] fetch/preload failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // 拉图层；slot 切换时重新拉取并清空选中 / editState。
   // venue 切回时把 venueInsertedLayersRef.current（当前 session 已插入的会场组件
   // 图层）拼回到原始 venue layers 末尾，避免"切到别的 slot 再回来插入的组件
   // 消失"这种 footgun。
@@ -172,8 +198,6 @@ export function EditorShell({ template, activity }: EditorShellProps) {
         const data: PsdLayer[] = await res.json();
         if (cancelled) return;
         setLayers(isVenue ? [...data, ...venueInsertedLayersRef.current] : data);
-        // 一次性预加载内置字体所有 variant
-        await preloadAllFonts();
       } catch (err) {
         console.error("Failed to load layers:", err);
       } finally {
@@ -577,6 +601,7 @@ export function EditorShell({ template, activity }: EditorShellProps) {
             isVenue={activeSlotId === "venue"}
             canvasBgColor={effVenueBgColor}
             onCanvasBgColorChange={handleCanvasBgColorChange}
+            fontFamilies={fontFamilies}
           />
         </div>
       </div>

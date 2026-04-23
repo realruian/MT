@@ -1,4 +1,22 @@
-@import "tailwindcss";
+/*
+ * Tailwind 4 source 白名单（临时方案，2026-04 起生效）
+ *
+ * 背景：Tailwind 4 的默认 content detection 会扫项目根下所有非二进制文件，
+ * 生成 CSS 时把"疑似类名"的 token 当作 arbitrary class。项目里 public/
+ * 下 HTML 模板、data/local.db 等文件含有非 UTF-8 残片或奇怪字节序列，会
+ * 被 oxide 抓出 `.h-[|��!]` 这种乱码 class，生成的 CSS parse 失败导致
+ * 整个 dev server 500。
+ *
+ * 规避：`source(none)` 关掉默认扫描，只扫下面显式列出的目录。新增源码
+ * 目录（比如 features/、scripts/）需要同步加 @source 一行，否则这些目录
+ * 里的 Tailwind class 不会生成到 CSS。根因（具体哪个文件污染 oxide）没
+ * 有二分定位，demo 后若需排查，按 `.cursor/rules/dev-troubleshooting.mdc`
+ * 步骤 3 的二分法处理。
+ */
+@import "tailwindcss" source(none);
+@source "../app/**/*.{ts,tsx}";
+@source "../components/**/*.{ts,tsx}";
+@source "../lib/**/*.{ts,tsx}";
 
 /* ── 自定义字体 ── */
 @font-face {

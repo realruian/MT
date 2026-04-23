@@ -51,6 +51,37 @@ next-env.d.ts
 # local sqlite + blob 存储（本地运行态产物，不入库）
 /data
 
+# public/fonts/ 下字体文件本机维护，不入库（几百 MB 二进制，git 不适合）
+# whitelist 保护历史 tracked 的 22 个字体，防止 git rm --cached 后被误删；
+# 新人需要补字体请看 public/fonts/README.md
+public/fonts/**/*.ttf
+public/fonts/**/*.TTF
+public/fonts/**/*.otf
+public/fonts/**/*.OTF
+public/fonts/**/*.woff
+public/fonts/**/*.woff2
+!public/fonts/FZLTCHJW.TTF
+!public/fonts/FZLTCXHJW.TTF
+!public/fonts/FZLTDHJW.TTF
+!public/fonts/FZLTHJW.TTF
+!public/fonts/FZLTTHJW.TTF
+!public/fonts/FZLTXHJW.TTF
+!public/fonts/FZLTXIHJW.TTF
+!public/fonts/FZLTZCHJW.TTF
+!public/fonts/FZLTZHJW.TTF
+!public/fonts/FZLTZHUNHJW.TTF
+!public/fonts/FZLanTYJW.TTF
+!public/fonts/FZLanTYJW_Cu.TTF
+!public/fonts/FZLanTYJW_Zhong.TTF
+!public/fonts/Meituan Type-Bold.TTF
+!public/fonts/Meituan Type-Regular.TTF
+!public/fonts/MiSans-Demibold.otf
+!public/fonts/MiSans-Medium.otf
+!public/fonts/MiSans-Regular.otf
+!public/fonts/SmileySans-Oblique-2.ttf
+!public/fonts/molly/FZShengSKSJW_Da.ttf
+!public/fonts/molly/FZShengSKSJW_Zhong.ttf
+!public/fonts/造字工房元黑体.ttf
 
 # Cursor 项目元数据
 .cursor/
