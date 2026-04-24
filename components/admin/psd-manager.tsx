@@ -19,11 +19,13 @@ import {
 } from "lucide-react";
 import type { PsdLayer } from "@/types/template";
 import type { ReactNode } from "react";
+import { readLastCategory, writeLastCategory } from "@/lib/admin-prefs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast, ToastView } from "@/components/ui/toast";
 
 const CATEGORIES = [
   "全套活动",
   "会场头图",
-  "会场组件",
   "站内资源位",
   "站外资源位",
   "素材修改",
@@ -82,7 +84,7 @@ export function PsdManager() {
   const [psdTemplates, setPsdTemplates] = useState<PsdTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [message, setMessage] = useState("");
+  const { toast, showToast } = useToast();
   const [psdFilterCategory, setPsdFilterCategory] = useState<string | null>(
     null,
   );
@@ -91,7 +93,9 @@ export function PsdManager() {
   const [layers, setLayers] = useState<PsdLayer[]>([]);
 
   const [saveName, setSaveName] = useState("");
-  const [saveCategory, setSaveCategory] = useState("站内资源位");
+  const [saveCategory, setSaveCategory] = useState<string>(
+    () => readLastCategory("psd", CATEGORIES) ?? "站内资源位",
+  );
   const [saveThumbnail, setSaveThumbnail] = useState("");
   const [saving, setSaving] = useState(false);
   const [thumbUploading, setThumbUploading] = useState(false);
@@ -114,6 +118,23 @@ export function PsdManager() {
   const [editThumbnail, setEditThumbnail] = useState("");
   const [editLoading, setEditLoading] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: ReactNode;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  async function runConfirm() {
+    if (!confirmState) return;
+    setConfirmBusy(true);
+    try {
+      await confirmState.onConfirm();
+    } finally {
+      setConfirmBusy(false);
+      setConfirmState(null);
+    }
+  }
   const [editThumbUploading, setEditThumbUploading] = useState(false);
 
   const fetchPsdTemplates = useCallback(async () => {
@@ -137,18 +158,20 @@ export function PsdManager() {
 
   async function handleUploadPsd(file: File) {
     if (!file.name.toLowerCase().endsWith(".psd")) {
-      setMessage("只支持 .psd 文件");
+      showToast("error", "只支持 .psd 文件");
       return;
     }
     if (file.size > 200 * 1024 * 1024) {
-      setMessage(`文件过大（${Math.round(file.size / 1024 / 1024)}MB），最大 200MB`);
+      showToast(
+        "error",
+        `文件过大（${Math.round(file.size / 1024 / 1024)}MB），最大 200MB`,
+      );
       return;
     }
 
     // 互斥：如果当前有编辑 Modal 打开，先关闭它
     setEditingTpl(null);
     setUploading(true);
-    setMessage("正在上传并解析 PSD 文件，请耐心等待...");
     setParsed(null);
     setLayers([]);
 
@@ -159,7 +182,7 @@ export function PsdManager() {
       const data = await res.json();
 
       if (!res.ok) {
-        setMessage(`上传失败：${data.error}`);
+        showToast("error", `上传失败：${data.error}`);
         return;
       }
 
@@ -176,9 +199,15 @@ export function PsdManager() {
         setLayers(await layersRes.json());
       }
 
-      setMessage(`解析成功：${data.template.width}×${data.template.height}，${data.template.layerCount} 个图层`);
+      showToast(
+        "success",
+        `解析成功：${data.template.width}×${data.template.height}，${data.template.layerCount} 个图层`,
+      );
     } catch (err) {
-      setMessage(`上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+      showToast(
+        "error",
+        `上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+      );
     } finally {
       setUploading(false);
     }
@@ -198,7 +227,7 @@ export function PsdManager() {
         ),
       );
     } catch {
-      setMessage("图层类型更新失败");
+      showToast("error", "图层类型更新失败");
     }
   }
 
@@ -215,7 +244,7 @@ export function PsdManager() {
         prev.map((l) => l.id === layerId ? { ...l, locked: newLocked } : l),
       );
     } catch {
-      setMessage("锁定状态更新失败");
+      showToast("error", "锁定状态更新失败");
     }
   }
 
@@ -232,7 +261,7 @@ export function PsdManager() {
         prev.map((l) => l.id === layerId ? { ...l, locked: newLocked } : l),
       );
     } catch {
-      setMessage("锁定状态更新失败");
+      showToast("error", "锁定状态更新失败");
     }
   }
 
@@ -247,10 +276,10 @@ export function PsdManager() {
       if (res.ok) {
         setSaveThumbnail(data.url);
       } else {
-        setMessage(`缩略图上传失败：${data.error}`);
+        showToast("error", `缩略图上传失败：${data.error}`);
       }
     } catch {
-      setMessage("缩略图上传失败：网络错误");
+      showToast("error", "缩略图上传失败：网络错误");
     } finally {
       setThumbUploading(false);
     }
@@ -259,7 +288,7 @@ export function PsdManager() {
   async function handleSaveTemplate() {
     if (!parsed) return;
     if (!saveName.trim()) {
-      setMessage("请填写模板名称");
+      showToast("error", "请填写模板名称");
       return;
     }
 
@@ -285,22 +314,35 @@ export function PsdManager() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage("模板保存成功");
+      writeLastCategory("psd", saveCategory);
+      showToast("success", "模板保存成功");
       setParsed(null);
       setLayers([]);
       fetchPsdTemplates();
     } catch (err) {
-      setMessage(`保存失败：${err instanceof Error ? err.message : "未知错误"}`);
+      showToast(
+        "error",
+        `保存失败：${err instanceof Error ? err.message : "未知错误"}`,
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string, name: string) {
-    if (!confirm(`确定要删除 PSD 模板 "${name}" 吗？`)) return;
-    await fetch(`/api/admin/templates/${id}`, { method: "DELETE" });
-    if (editingTpl?.id === id) setEditingTpl(null);
-    fetchPsdTemplates();
+  function handleDelete(id: string, name: string) {
+    setConfirmState({
+      title: "删除 PSD 模板",
+      description: (
+        <>
+          确定删除 PSD 模板 <strong>{name}</strong> 吗？关联的图层和源文件会一并移除。
+        </>
+      ),
+      onConfirm: async () => {
+        await fetch(`/api/admin/templates/${id}`, { method: "DELETE" });
+        if (editingTpl?.id === id) setEditingTpl(null);
+        fetchPsdTemplates();
+      },
+    });
   }
 
   async function handleStartEdit(tpl: PsdTemplate) {
@@ -334,7 +376,7 @@ export function PsdManager() {
         prev.map((l) => l.id === layerId ? { ...l, layerType: newType as PsdLayer["layerType"] } : l),
       );
     } catch {
-      setMessage("图层类型更新失败");
+      showToast("error", "图层类型更新失败");
     }
   }
 
@@ -347,15 +389,15 @@ export function PsdManager() {
       const res = await fetch("/api/admin/upload", { method: "POST", body: form });
       const data = await res.json();
       if (res.ok) setEditThumbnail(data.url);
-      else setMessage(`缩略图上传失败：${data.error}`);
-    } catch { setMessage("缩略图上传失败"); } finally {
+      else showToast("error", `缩略图上传失败：${data.error}`);
+    } catch { showToast("error", "缩略图上传失败"); } finally {
       setEditThumbUploading(false);
     }
   }
 
   async function handleSaveEdit() {
     if (!editingTpl || !editName.trim()) {
-      setMessage("请填写模板名称");
+      showToast("error", "请填写模板名称");
       return;
     }
     setEditSaving(true);
@@ -380,11 +422,15 @@ export function PsdManager() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage("模板更新成功");
+      writeLastCategory("psd", editCategory);
+      showToast("success", "模板更新成功");
       setEditingTpl(null);
       fetchPsdTemplates();
     } catch (err) {
-      setMessage(`更新失败：${err instanceof Error ? err.message : "未知错误"}`);
+      showToast(
+        "error",
+        `更新失败：${err instanceof Error ? err.message : "未知错误"}`,
+      );
     } finally {
       setEditSaving(false);
     }
@@ -392,12 +438,7 @@ export function PsdManager() {
 
   return (
     <div className="space-y-6">
-      {/* 消息提示 */}
-      {message && (
-        <p className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-600">
-          {message}
-        </p>
-      )}
+      <ToastView toast={toast} />
 
       {/* 上传区域 */}
       <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
@@ -434,8 +475,26 @@ export function PsdManager() {
             if (saving) return;
             setParsed(null);
             setLayers([]);
-            setMessage("");
           }}
+          footer={
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => { setParsed(null); setLayers([]); }}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                disabled={saving}
+                className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                type="button"
+              >
+                {saving ? "保存中..." : "保存模板"}
+              </button>
+            </div>
+          }
         >
           <p className="mb-3 text-xs text-gray-400">
             画布 {parsed.template.width} × {parsed.template.height}px ·{" "}
@@ -692,21 +751,6 @@ export function PsdManager() {
                 </div>
               </div>
             </div>
-            <div className="mt-4 flex justify-end gap-3">
-              <button
-                onClick={() => { setParsed(null); setLayers([]); setMessage(""); }}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSaveTemplate}
-                disabled={saving}
-                className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {saving ? "保存中..." : "保存模板"}
-              </button>
-            </div>
           </div>
         </PsdManagerModal>
       )}
@@ -848,6 +892,25 @@ export function PsdManager() {
             if (editSaving) return;
             setEditingTpl(null);
           }}
+          footer={
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setEditingTpl(null)}
+                className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                type="button"
+              >
+                取消
+              </button>
+              <button
+                onClick={handleSaveEdit}
+                disabled={editSaving}
+                className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                type="button"
+              >
+                {editSaving ? "保存中..." : "保存修改"}
+              </button>
+            </div>
+          }
         >
           {/* 基本信息 */}
           <div className="mb-6 grid grid-cols-2 gap-3">
@@ -1069,24 +1132,18 @@ export function PsdManager() {
             </>
           )}
 
-          {/* 保存/取消 */}
-          <div className="flex items-center justify-end gap-3">
-            <button
-              onClick={() => setEditingTpl(null)}
-              className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-            >
-              取消
-            </button>
-            <button
-              onClick={handleSaveEdit}
-              disabled={editSaving}
-              className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {editSaving ? "保存中..." : "保存修改"}
-            </button>
-          </div>
         </PsdManagerModal>
       )}
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description}
+        tone="danger"
+        confirmText="删除"
+        busy={confirmBusy}
+        onConfirm={runConfirm}
+        onCancel={() => !confirmBusy && setConfirmState(null)}
+      />
     </div>
   );
 }
@@ -1094,10 +1151,12 @@ export function PsdManager() {
 function PsdManagerModal({
   title,
   onClose,
+  footer,
   children,
 }: {
   title: string;
   onClose: () => void;
+  footer?: ReactNode;
   children: ReactNode;
 }) {
   return (
@@ -1106,10 +1165,10 @@ function PsdManagerModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-[min(960px,92vw)] overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+        className="flex max-h-[90vh] w-[min(960px,92vw)] flex-col rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
           <button
             onClick={onClose}
@@ -1120,7 +1179,12 @@ function PsdManagerModal({
             <X className="size-4" />
           </button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {footer && (
+          <div className="shrink-0 border-t border-gray-200 bg-white px-6 py-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );

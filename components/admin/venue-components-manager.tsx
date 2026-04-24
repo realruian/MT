@@ -15,6 +15,10 @@ import {
 } from "lucide-react";
 import { VENUE_COMPONENT_GROUPS } from "@/lib/venue-component-groups";
 import type { VenueComponentRecord } from "@/types/venue-component";
+import { readLastCategory, writeLastCategory } from "@/lib/admin-prefs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast, ToastView } from "@/components/ui/toast";
+import type { ReactNode } from "react";
 
 /**
  * 会场组件管理器（可复用）。
@@ -33,16 +37,30 @@ export function VenueComponentsManager({
     | { mode: "edit"; component: VenueComponentRecord }
     | null
   >(null);
-  const [toast, setToast] = useState<{
-    variant: "success" | "error";
-    text: string;
-  } | null>(null);
+  const { toast, showToast } = useToast();
   const [regeneratingIds, setRegeneratingIds] = useState<Set<string>>(
     new Set(),
   );
   const [venueFilterGroup, setVenueFilterGroup] = useState<string | null>(
     null,
   );
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: ReactNode;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  async function runConfirm() {
+    if (!confirmState) return;
+    setConfirmBusy(true);
+    try {
+      await confirmState.onConfirm();
+    } finally {
+      setConfirmBusy(false);
+      setConfirmState(null);
+    }
+  }
 
   const fetchList = useCallback(async () => {
     setLoading(true);
@@ -53,45 +71,46 @@ export function VenueComponentsManager({
       setComponents(data.components ?? []);
     } catch (err) {
       console.error(err);
-      setToast({
-        variant: "error",
-        text: `加载组件失败：${err instanceof Error ? err.message : "网络错误"}`,
-      });
+      showToast(
+        "error",
+        `加载组件失败：${err instanceof Error ? err.message : "网络错误"}`,
+      );
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     fetchList();
   }, [fetchList]);
 
-  useEffect(() => {
-    if (!toast) return;
-    const timer = setTimeout(() => setToast(null), 3000);
-    return () => clearTimeout(timer);
-  }, [toast]);
 
-  async function handleDelete(component: VenueComponentRecord) {
-    if (
-      !window.confirm(`确定删除组件「${component.name}」？此操作不可恢复`)
-    )
-      return;
-    try {
-      const res = await fetch(
-        `/api/admin/venue-components/${component.id}`,
-        { method: "DELETE" },
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "删除失败");
-      setToast({ variant: "success", text: `已删除「${component.name}」` });
-      fetchList();
-    } catch (err) {
-      setToast({
-        variant: "error",
-        text: `删除失败：${err instanceof Error ? err.message : "网络错误"}`,
-      });
-    }
+  function handleDelete(component: VenueComponentRecord) {
+    setConfirmState({
+      title: "删除会场组件",
+      description: (
+        <>
+          确定删除组件 <strong>{component.name}</strong> 吗？此操作不可恢复。
+        </>
+      ),
+      onConfirm: async () => {
+        try {
+          const res = await fetch(
+            `/api/admin/venue-components/${component.id}`,
+            { method: "DELETE" },
+          );
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "删除失败");
+          showToast("success", `已删除「${component.name}」`);
+          fetchList();
+        } catch (err) {
+          showToast(
+            "error",
+            `删除失败：${err instanceof Error ? err.message : "网络错误"}`,
+          );
+        }
+      },
+    });
   }
 
   async function handleRegenerateThumbnail(component: VenueComponentRecord) {
@@ -103,16 +122,13 @@ export function VenueComponentsManager({
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "重新生成缩略图失败");
-      setToast({
-        variant: "success",
-        text: `已重新生成「${component.name}」缩略图`,
-      });
+      showToast("success", `已重新生成「${component.name}」缩略图`);
       fetchList();
     } catch (err) {
-      setToast({
-        variant: "error",
-        text: `重新生成失败：${err instanceof Error ? err.message : "网络错误"}`,
-      });
+      showToast(
+        "error",
+        `重新生成失败：${err instanceof Error ? err.message : "网络错误"}`,
+      );
     } finally {
       setRegeneratingIds((prev) => {
         const next = new Set(prev);
@@ -144,10 +160,10 @@ export function VenueComponentsManager({
       fetchList();
     } catch (err) {
       setComponents(snapshot);
-      setToast({
-        variant: "error",
-        text: `排序保存失败：${err instanceof Error ? err.message : "网络错误"}`,
-      });
+      showToast(
+        "error",
+        `排序保存失败：${err instanceof Error ? err.message : "网络错误"}`,
+      );
     }
   }
 
@@ -193,19 +209,7 @@ export function VenueComponentsManager({
         </header>
       )}
 
-      {toast && (
-        <div
-          role="status"
-          className={[
-            "mx-auto mt-4 w-fit max-w-[min(640px,90vw)] rounded-lg px-4 py-2 text-sm shadow-sm",
-            toast.variant === "success"
-              ? "bg-emerald-50 text-emerald-700"
-              : "bg-red-50 text-red-700",
-          ].join(" ")}
-        >
-          {toast.text}
-        </div>
-      )}
+      <ToastView toast={toast} />
 
       <main className={showHeader ? "mx-auto max-w-6xl p-6" : ""}>
         {!showHeader && (
@@ -296,10 +300,20 @@ export function VenueComponentsManager({
           onSuccess={(message) => {
             setFormModal(null);
             fetchList();
-            setToast({ variant: "success", text: message });
+            showToast("success", message);
           }}
         />
       )}
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description}
+        tone="danger"
+        confirmText="删除"
+        busy={confirmBusy}
+        onConfirm={runConfirm}
+        onCancel={() => !confirmBusy && setConfirmState(null)}
+      />
     </div>
   );
 }
@@ -577,7 +591,9 @@ function ComponentFormModal({
   const [psdFile, setPsdFile] = useState<File | null>(null);
   const [name, setName] = useState(initial?.name ?? "");
   const [group, setGroup] = useState<string>(
-    initial?.groupName ?? VENUE_COMPONENT_GROUPS[0],
+    initial?.groupName ??
+      readLastCategory("venue", VENUE_COMPONENT_GROUPS) ??
+      VENUE_COMPONENT_GROUPS[0],
   );
   const [thumbFile, setThumbFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -625,6 +641,7 @@ function ComponentFormModal({
       if (!res.ok) throw new Error(data.error || (isEdit ? "更新失败" : "上传失败"));
 
       const finalName = data.component?.name ?? name.trim();
+      writeLastCategory("venue", group);
       onSuccess(isEdit ? `已更新「${finalName}」` : `已上传「${finalName}」`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "网络错误");
@@ -635,14 +652,15 @@ function ComponentFormModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={() => !submitting && onClose()}
     >
-      <div
-        className="w-[min(520px,92vw)] rounded-xl bg-white p-6 shadow-xl"
+      <form
+        onSubmit={handleSubmit}
+        className="flex max-h-[90vh] w-[min(520px,92vw)] flex-col rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h2 className="text-base font-semibold text-gray-900">
             {isEdit ? "编辑会场组件" : "上传会场组件"}
           </h2>
@@ -657,13 +675,12 @@ function ComponentFormModal({
           </button>
         </div>
 
-        {error && (
-          <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
-            {error}
-          </p>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          {error && (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">
+              {error}
+            </p>
+          )}
           {/* PSD 文件 */}
           <label className="block">
             <span className="mb-1 flex items-center justify-between text-xs font-medium text-gray-700">
@@ -727,9 +744,19 @@ function ComponentFormModal({
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-gray-400"
-              placeholder="如：头图 A"
+              placeholder="≤6 字，如 头图 A"
               disabled={submitting}
             />
+            <p
+              className={[
+                "mt-1 text-[11px]",
+                nameOverLimit ? "text-red-500" : "text-gray-400",
+              ].join(" ")}
+            >
+              {nameOverLimit
+                ? `已超过 6 字上限，请精简（当前 ${nameLen} 字）`
+                : "组件名会显示在编辑器左侧的组件卡片上，超过 6 字会被截断"}
+            </p>
           </label>
 
           {/* 分组 */}
@@ -788,37 +815,40 @@ function ComponentFormModal({
             </p>
           </label>
 
-          <div className="flex items-center justify-between pt-2">
-            {isEdit && !hasAnyEdit && (
-              <span className="text-[11px] text-gray-400">尚未修改任何字段</span>
-            )}
-            <div className="ml-auto flex gap-2">
-              <button
-                type="button"
-                onClick={() => !submitting && onClose()}
-                disabled={submitting}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={!canSubmit}
-                className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {submitting && <Loader2 className="size-3.5 animate-spin" />}
-                {submitting
-                  ? isEdit
-                    ? "保存中…"
-                    : "上传中…"
-                  : isEdit
-                    ? "保存"
-                    : "上传"}
-              </button>
-            </div>
+        </div>
+
+        <div className="flex shrink-0 items-center justify-between border-t border-gray-200 bg-white px-6 py-3">
+          {isEdit && !hasAnyEdit ? (
+            <span className="text-[11px] text-gray-400">尚未修改任何字段</span>
+          ) : (
+            <span />
+          )}
+          <div className="ml-auto flex gap-2">
+            <button
+              type="button"
+              onClick={() => !submitting && onClose()}
+              disabled={submitting}
+              className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50 disabled:opacity-50"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            >
+              {submitting && <Loader2 className="size-3.5 animate-spin" />}
+              {submitting
+                ? isEdit
+                  ? "保存中…"
+                  : "上传中…"
+                : isEdit
+                  ? "保存"
+                  : "上传"}
+            </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 }

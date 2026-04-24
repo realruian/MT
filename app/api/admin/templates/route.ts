@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 
 export async function GET() {
@@ -68,6 +69,9 @@ export async function POST(req: NextRequest) {
         canvas_height = EXCLUDED.canvas_height,
         updated_at = CURRENT_TIMESTAMP
     `;
+
+    revalidatePath("/");
+    if (id) revalidatePath(`/editor/${id}`);
 
     return Response.json({ ok: true });
   } catch (err) {

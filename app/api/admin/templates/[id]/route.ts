@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getDb } from "@/lib/db";
 
 export async function GET(
@@ -36,6 +37,8 @@ export async function DELETE(
     const { id } = await params;
     const sql = getDb();
     await sql`DELETE FROM templates WHERE id = ${id}`;
+    revalidatePath("/");
+    revalidatePath(`/editor/${id}`);
     return Response.json({ ok: true });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

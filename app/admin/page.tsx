@@ -5,11 +5,13 @@ import Link from "next/link";
 import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2, X } from "lucide-react";
 import { PsdManager } from "@/components/admin/psd-manager";
 import { VenueComponentsManager } from "@/components/admin/venue-components-manager";
+import { readLastCategory, writeLastCategory } from "@/lib/admin-prefs";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useToast, ToastView } from "@/components/ui/toast";
 
 const CATEGORIES = [
   "全套活动",
   "会场头图",
-  "会场组件",
   "站内资源位",
   "站外资源位",
   "素材修改",
@@ -203,7 +205,7 @@ function emptyTemplate(): Partial<TemplateRow> {
   return {
     id: generateId(),
     name: "",
-    category: "会场头图",
+    category: readLastCategory("html", CATEGORIES) ?? "会场头图",
     thumbnail: "",
     width: 750,
     height: 810,
@@ -220,11 +222,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [dbReady, setDbReady] = useState(true);
+  // message 仅在 !dbReady fallback 页里用（初始化数据库的进度 / 结果）
   const [message, setMessage] = useState("");
-  const [fileNotice, setFileNotice] = useState<{
-    variant: "success" | "error";
-    text: string;
-  } | null>(null);
+  const { toast, showToast } = useToast();
   const [lastHtmlContent, setLastHtmlContent] = useState("");
   const [thumbUploading, setThumbUploading] = useState(false);
   const [htmlUploading, setHtmlUploading] = useState(false);
@@ -238,6 +238,23 @@ export default function AdminPage() {
     null,
   );
   const [htmlUploadModalOpen, setHtmlUploadModalOpen] = useState(false);
+  const [confirmState, setConfirmState] = useState<{
+    title: string;
+    description: React.ReactNode;
+    onConfirm: () => Promise<void> | void;
+  } | null>(null);
+  const [confirmBusy, setConfirmBusy] = useState(false);
+
+  async function runConfirm() {
+    if (!confirmState) return;
+    setConfirmBusy(true);
+    try {
+      await confirmState.onConfirm();
+    } finally {
+      setConfirmBusy(false);
+      setConfirmState(null);
+    }
+  }
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -259,7 +276,6 @@ export default function AdminPage() {
   }, [fetchTemplates]);
 
   useEffect(() => {
-    setFileNotice(null);
     setLastHtmlContent("");
     setUploadedAssets([]);
     setCopiedUrl(null);
@@ -317,8 +333,6 @@ export default function AdminPage() {
   async function handleSave() {
     if (!editing) return;
     setSaving(true);
-    setMessage("");
-    setFileNotice(null);
     try {
       const res = await fetch("/api/admin/templates", {
         method: "POST",
@@ -327,20 +341,34 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-      setMessage("保存成功");
+      if (editing.category) writeLastCategory("html", editing.category);
+      showToast("success", "保存成功");
       setEditing(null);
       fetchTemplates();
     } catch (err) {
-      setMessage(`保存失败: ${err instanceof Error ? err.message : "未知错误"}`);
+      showToast(
+        "error",
+        `保存失败: ${err instanceof Error ? err.message : "未知错误"}`,
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm(`确定要删除模板 "${id}" 吗？`)) return;
-    await fetch(`/api/admin/templates/${id}`, { method: "DELETE" });
-    fetchTemplates();
+  function handleDelete(id: string) {
+    const tpl = templates.find((t) => t.id === id);
+    setConfirmState({
+      title: "删除 HTML 模板",
+      description: (
+        <>
+          确定删除模板 <strong>{tpl?.name ?? id}</strong> 吗？此操作不可撤销。
+        </>
+      ),
+      onConfirm: async () => {
+        await fetch(`/api/admin/templates/${id}`, { method: "DELETE" });
+        fetchTemplates();
+      },
+    });
   }
 
   function updateField<K extends keyof TemplateRow>(key: K, value: TemplateRow[K]) {
@@ -475,13 +503,7 @@ export default function AdminPage() {
           <span className="h-4 w-px bg-gray-200" />
           <h1 className="text-lg font-semibold text-gray-900">管理后台</h1>
         </div>
-        <div className="flex min-w-0 shrink items-center gap-3">
-          {message && (
-            <span className="max-w-[min(320px,45vw)] shrink-0 truncate text-xs text-gray-600" title={message}>
-              {message}
-            </span>
-          )}
-        </div>
+        <div className="flex min-w-0 shrink items-center gap-3" />
       </header>
 
       {/* Tab 切换栏 */}
@@ -586,10 +608,12 @@ export default function AdminPage() {
                         const fc = parsed.texts.length + parsed.images.length;
                         if (fc > 0) parts.push(`识别到 ${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段`);
                         const line = parts.join("；") + "。";
-                        setMessage(line);
-                        setFileNotice({ variant: "success", text: line });
+                        showToast("success", line);
                       } catch (err) {
-                        setMessage(`HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+                        showToast(
+                          "error",
+                          `HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+                        );
                       } finally {
                         setHtmlUploading(false);
                       }
@@ -774,10 +798,13 @@ export default function AdminPage() {
                             { name: file.name, url: `/api/fonts/${cleanPath}`, folder: fontFolder || "(根)" },
                           ]);
                         } else {
-                          setMessage(`字体上传失败：${data.error}`);
+                          showToast("error", `字体上传失败：${data.error}`);
                         }
                       } catch (err) {
-                        setMessage(`字体上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+                        showToast(
+                          "error",
+                          `字体上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+                        );
                       }
                     }
                     setFontUploading(false);
@@ -837,23 +864,29 @@ export default function AdminPage() {
             onClose={() => {
               if (saving) return;
               setEditing(null);
-              setMessage("");
-              setFileNotice(null);
             }}
+            footer={
+              <div className="flex items-center justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditing(null);
+                  }}
+                  className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                >
+                  {saving ? "保存中..." : "保存"}
+                </button>
+              </div>
+            }
           >
-            {fileNotice && (
-              <p
-                role="status"
-                className={
-                  fileNotice.variant === "success"
-                    ? "mb-4 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-800"
-                    : "mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800"
-                }
-              >
-                {fileNotice.text}
-              </p>
-            )}
-
             <div className="grid grid-cols-2 gap-4">
               <div className="flex flex-col gap-1">
                 <span className="text-xs text-gray-500">模板 ID（自动生成）</span>
@@ -941,18 +974,15 @@ export default function AdminPage() {
                           const result = await handleUpload(file, "thumbnails");
                           if (result.ok) {
                             updateField("thumbnail", result.url);
-                            const line = "缩略图已上传，链接已填入上方输入框。";
-                            setMessage(line);
-                            setFileNotice({ variant: "success", text: line });
+                            showToast("success", "缩略图已上传，链接已填入上方输入框。");
                           } else {
-                            const line = `缩略图上传失败：${result.error}`;
-                            setMessage(line);
-                            setFileNotice({ variant: "error", text: line });
+                            showToast("error", `缩略图上传失败：${result.error}`);
                           }
                         } catch (err) {
-                          const line = `缩略图上传失败：${err instanceof Error ? err.message : "网络错误"}`;
-                          setMessage(line);
-                          setFileNotice({ variant: "error", text: line });
+                          showToast(
+                            "error",
+                            `缩略图上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+                          );
                         } finally {
                           setThumbUploading(false);
                         }
@@ -1040,18 +1070,15 @@ export default function AdminPage() {
                                 `识别到 ${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段`,
                               );
                             }
-                            const line = parts.join("；") + "。";
-                            setMessage(line);
-                            setFileNotice({ variant: "success", text: line });
+                            showToast("success", parts.join("；") + "。");
                           } else {
-                            const line = `HTML 上传失败：${result.error}`;
-                            setMessage(line);
-                            setFileNotice({ variant: "error", text: line });
+                            showToast("error", `HTML 上传失败：${result.error}`);
                           }
                         } catch (err) {
-                          const line = `HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`;
-                          setMessage(line);
-                          setFileNotice({ variant: "error", text: line });
+                          showToast(
+                            "error",
+                            `HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+                          );
                         } finally {
                           setHtmlUploading(false);
                         }
@@ -1082,10 +1109,7 @@ export default function AdminPage() {
                   onClick={() => {
                     const parsed = parseFieldsFromHtml(lastHtmlContent);
                     if (!parsed.texts.length && !parsed.images.length) {
-                      setFileNotice({
-                        variant: "error",
-                        text: "未能从 HTML 中识别到任何 params.get() 字段。",
-                      });
+                      showToast("error", "未能从 HTML 中识别到任何 params.get() 字段。");
                       return;
                     }
                     setEditing((prev) => {
@@ -1099,10 +1123,10 @@ export default function AdminPage() {
                         },
                       };
                     });
-                    setFileNotice({
-                      variant: "success",
-                      text: `已从 HTML 重新识别：${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段（已覆盖原有字段）。`,
-                    });
+                    showToast(
+                      "success",
+                      `已从 HTML 重新识别：${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段（已覆盖原有字段）。`,
+                    );
                   }}
                   className="flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-medium text-amber-700 transition-colors hover:bg-amber-100"
                 >
@@ -1228,16 +1252,22 @@ export default function AdminPage() {
                             ]);
                             count++;
                           } else {
-                            setFileNotice({ variant: "error", text: `${file.name} 上传失败：${result.error}` });
+                            showToast("error", `${file.name} 上传失败：${result.error}`);
                           }
                         } catch (err) {
-                          setFileNotice({ variant: "error", text: `${file.name} 上传失败：${err instanceof Error ? err.message : "网络错误"}` });
+                          showToast(
+                            "error",
+                            `${file.name} 上传失败：${err instanceof Error ? err.message : "网络错误"}`,
+                          );
                         }
                       }
                       setAssetUploading(false);
                       e.target.value = "";
                       if (count > 0) {
-                        setFileNotice({ variant: "success", text: `已上传 ${count} 个素材文件。点击 URL 旁的复制按钮可复制链接。` });
+                        showToast(
+                          "success",
+                          `已上传 ${count} 个素材文件。点击 URL 旁的复制按钮可复制链接。`,
+                        );
                       }
                     }}
                   />
@@ -1344,7 +1374,7 @@ export default function AdminPage() {
                                 if (result.ok) {
                                   setColorSchemeValue(schemeIdx, k, result.url);
                                 } else {
-                                  setFileNotice({ variant: "error", text: `上传失败：${result.error}` });
+                                  showToast("error", `上传失败：${result.error}`);
                                 }
                                 e.target.value = "";
                               }}
@@ -1398,30 +1428,21 @@ export default function AdminPage() {
               })}
             </div>
 
-            {/* 操作按钮 */}
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                onClick={() => {
-                  setEditing(null);
-                  setMessage("");
-                  setFileNotice(null);
-                }}
-                className="rounded-lg border border-gray-200 px-4 py-2 text-xs text-gray-500 hover:bg-gray-50"
-              >
-                取消
-              </button>
-              <button
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-gray-900 px-6 py-2 text-xs font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {saving ? "保存中..." : "保存"}
-              </button>
-            </div>
           </AdminHtmlModal>
         )}
       </div>
       </div>
+      <ToastView toast={toast} />
+      <ConfirmDialog
+        open={confirmState !== null}
+        title={confirmState?.title ?? ""}
+        description={confirmState?.description}
+        tone="danger"
+        confirmText="删除"
+        busy={confirmBusy}
+        onConfirm={runConfirm}
+        onCancel={() => !confirmBusy && setConfirmState(null)}
+      />
     </div>
   );
 }
@@ -1429,10 +1450,12 @@ export default function AdminPage() {
 function AdminHtmlModal({
   title,
   onClose,
+  footer,
   children,
 }: {
   title: string;
   onClose: () => void;
+  footer?: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
@@ -1441,10 +1464,10 @@ function AdminHtmlModal({
       onClick={onClose}
     >
       <div
-        className="max-h-[90vh] w-[min(960px,92vw)] overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+        className="flex max-h-[90vh] w-[min(960px,92vw)] flex-col rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="mb-4 flex items-center justify-between">
+        <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">
           <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
           <button
             type="button"
@@ -1455,7 +1478,12 @@ function AdminHtmlModal({
             <X className="size-4" />
           </button>
         </div>
-        {children}
+        <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+        {footer && (
+          <div className="shrink-0 border-t border-gray-200 bg-white px-6 py-3">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   );
