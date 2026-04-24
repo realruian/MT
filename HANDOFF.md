@@ -1,30 +1,29 @@
 # 会场组件功能 HANDOFF
 
-> 最后更新：2026-04-23（PR4 阶段 1 完成）&nbsp;·&nbsp; 作者：交接中
+> 最后更新：2026-04-24（PR4 全量落地 + 画布 scroll + 胶囊 UI）&nbsp;·&nbsp; 作者：交接中
 > 对应分支：`main`
 >
 > 主线 commit：
 > - PR1 `de8c999` / PR2 `9fc8e30` / venue 拖拽换位 `453f7a7`
 > - 字体自动化 `ad5b464` / ensureRootGroup `c012c6f` / PR3 `049ae64`
-> - 渠道徽章 `70dcbde` / **PR4 阶段 1** `389ac54` / DEMO 模板切换 `bacfa5d`
+> - 渠道徽章 `70dcbde` / PR4 阶段 1-5 `389ac54` `083c2ca` `99a0a28` `14d100f` `a43fb65`
+> - 画布滚动 `8fabcfc` `235cf0a` `6a88dbb` / 尺寸胶囊 + 撤销/重做 `05dab03` `76a093f` `49caab2` `3bfc461`
+> - 一键延展 PSD-backed `d103c9e` / 扁平 PSD 交互 `ee9264c` `d26eb89`
+> - venue 分类门控 `94a1fda` / DEMO 模板切换 `bacfa5d` `a7026df`
 
 ---
 
-## ⚠️ 下一位接手优先读：PR4（原会场内容 autolayout）进行中
+## ⚠️ 下一位接手优先读：当前功能已全量落地
 
-新大需求：**venue 画布上原 PSD 内容（按图层组）也参与 Figma autolayout**
-—— 原 group 和插入的会场组件统一拖拽换位 + reflow 自动重排 + 删除自动收缩。
-
-- **阶段 1 ✅ 已完成**：PSD 解析层保留嵌套图层组 + admin UI 缩进树
-  展示 + 新 demo PSD `psd_mobmnxso_532a`（38礼遇-会场，4 个顶层
-  Group）已就绪
-- **阶段 2-5 待做**：详见下面 §9「PR4 剩余阶段待办」
-
-5 阶段方案原文在 chat 里，接手人请先读 §9 的决策和命名约定再动代码。
-不要读完 §1-§8 就急着动手 PR4。
+- **PR1-PR4（venue 会场组件库 + 原会场内容 autolayout）全部完成**，main
+  工作树干净
+- 最近一轮增强：画布按宽适配 + 垂直滚动 + 拖拽边缘自动滚动、尺寸胶囊
+  合并撤销/重做、一键延展支持 PSD-backed 资源位 + 假 AI loading 演出、
+  扁平 PSD 的叶子 layer / 文字 layer 都支持点击二级选中 + 双击编辑
+- **剩余可选项**：见 §5 待办 / §6.4 sidebar 入口 / §10 最新增强摘要
 
 面向接手这块功能的下一位开发。读完能在 10 分钟内接住编辑器「会场组件库」
-+ 管理后台「会场组件上传」两条链路。
++ 管理后台「会场组件上传」两条链路，以及 venue 画布的 autolayout 交互。
 
 ---
 
@@ -312,8 +311,20 @@ types/
 - **PR1**（后台组件上传）已提交（`de8c999`）
 - **PR2**（编辑 / 排序 / 重生缩略图）已提交（`9fc8e30`）
 - **venue 拖拽换位**（Figma autolayout 语义）已提交（`453f7a7`）
-- **ensureRootGroup**（venue 组件 payload 规范化）已提交
-- **PR3**（编辑器接入实时 API）已完成，待自测提交
+- **ensureRootGroup**（venue 组件 payload 规范化）已提交（`c012c6f`）
+- **PR3**（编辑器接入实时 API）已提交（`049ae64`）
+- **PR4 阶段 1-5**（原会场内容 autolayout）全部已提交
+  - 阶段 1 `389ac54` / 阶段 2 `083c2ca` / 阶段 3 `99a0a28`
+  - 阶段 4 `14d100f` / 阶段 5 `a43fb65`
+- **画布 scroll + 胶囊 UI**：venue 走 scroll mode，其他 slot 保持 fit-to-viewport；
+  尺寸胶囊上移并合并撤销/重做按钮；插入组件后自动滚动到新组件（`8fabcfc`
+  `235cf0a` `6a88dbb` `05dab03` `76a093f` `49caab2` `3bfc461`）
+- **venue 分类门控**：仅「全套活动模板」分类启用 venue 编辑器，其他分类
+  走普通模式（`94a1fda`）
+- **扁平 PSD 交互**：顶层叶子 layer 点击直接二级选中；文字 layer 双击进入
+  编辑态（`ee9264c` `d26eb89`）
+- **一键延展**：支持 PSD-backed 资源位 + 假 AI loading 演出（`d103c9e`
+  `1cd11c0`）
 
 编辑器侧默认走 `/api/venue-components` 实时数据；无数据时 SlotPanel
 展示「暂无组件，请到后台上传」空态。降级走 `NEXT_PUBLIC_USE_MOCK_VENUE_COMPONENTS=true`
@@ -428,7 +439,12 @@ range `b375973..de8c999`（`git log --oneline b375973..de8c999 -- components/edi
 
 ---
 
-## 9. PR4 剩余阶段待办（原会场内容 autolayout，2026-04-23 进行中）
+## 9. PR4 已完成归档（原会场内容 autolayout，2026-04-24 ✅ 全部交付）
+
+> 本节原为"剩余阶段待办"，阶段 2-5 已全部落地。保留决策/命名约定/算法摘要
+> 作为后续读代码的索引。实现 commit：阶段 2 `083c2ca` / 阶段 3 `99a0a28` /
+> 阶段 4 `14d100f` / 阶段 5 `a43fb65`。
+
 
 ### 9.1 阶段 1 完成快照
 
@@ -585,4 +601,44 @@ minTop 用常量 24 即可）。
 
 ### 9.8 未决问题
 
-无。5 个决策结果（D1-D8）都已对齐，可以按顺序推阶段 2→3→4→5。
+无。5 个决策结果（D1-D8）都已对齐，阶段 2→3→4→5 均已按方案落地。
+
+---
+
+## 10. 2026-04-24 最新增强摘要（PR4 之后）
+
+### 画布滚动与尺寸胶囊
+- venue slot **走垂直滚动模式**（`235cf0a`），其他 slot 保留 fit-to-viewport；
+  画布按宽度适配、拖拽到边缘自动滚动（`8fabcfc`）
+- 插入会场组件后自动滚动到新组件位置（`6a88dbb`）
+- **尺寸胶囊**上移 + 合并撤销/重做按钮（`05dab03` `76a093f`）；胶囊描边色
+  同步编辑器分割线，投影改为 `0 0 10px 5%`，**去 `backdrop-blur` 改纯白
+  背景**消除跨合成层破边（`49caab2` `3bfc461`）
+
+### venue 分类门控
+- `94a1fda`：仅当模板分类为「全套活动模板」时启用 venue 编辑器，其他
+  分类走普通 slot 编辑器。改 venue 入口逻辑时需要同步这条 gating。
+
+### 扁平 PSD 交互兼容
+- `ee9264c`：`canvas-stage` 顶层叶子 layer 点击直接二级选中（兼容扁平
+  PSD，没有顶层 group 时的 hit testing）
+- `d26eb89`：扁平 PSD 的文字 layer 也支持双击进入编辑态
+- 配合 `ensureRootGroup`（venue 组件一侧）+ 这两个 fix（模板 venue 画布
+  原内容一侧），扁平 PSD 在 venue 编辑器里的交互现在和规范 PSD 一致
+
+### 一键延展
+- `d103c9e`：一键延展支持 PSD-backed 资源位 + 假 AI loading 演出
+- `1cd11c0`：loading 演出简化为 spinner + 单行文案
+- 资源位预设增加渠道徽章标签（`70dcbde`）
+
+### DEMO 模板 id 同步
+- `a7026df`：`slot-presets.ts::DEMO_TEMPLATE` 的 id 会随后台重传 venue PSD
+  变化。**改 PSD 源文件重传后必须同步更新 `DEMO_TEMPLATE` id**，否则编辑
+  器拿不到最新解析结构。
+
+### 后台管理界面改版（2026-04-24）
+
+- **三 tab 并列**：PSD 模板 / HTML 模板 / 会场组件统一在 /admin 顶栏，删除右上角单独「会场组件」Link；`components/admin/venue-components-manager.tsx` 新增，`/admin/venue-components` 保留作独立入口
+- **分类筛选 chip**：三个 tab 的列表上方各加一行 chip 行（只渲染有内容的分类，带计数）
+- **上传 / 编辑改 Modal**：PSD `PsdManagerModal` 内联 + HTML `AdminHtmlModal` 内联，max-h-90vh 内部滚动；解析态和编辑态互斥，上传/保存中不可关
+- **venue PSD 上限**：`MAX_PSD_SIZE` 5MB → 50MB（`lib/venue-component-psd.ts`）
