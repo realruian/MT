@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp, ImageIcon, Loader2, Upload } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import type { FontFamilyDef } from "@/lib/fonts";
 
@@ -336,6 +336,7 @@ export function PropertyPanel({
           <h3 className="mb-3 text-[12px] text-[#11192D]">图片</h3>
           <ImageField
             layer={selectedLayer}
+            eff={eff}
             effWidth={eff(selectedLayer, "width") as number}
             onUpdate={onUpdate}
           />
@@ -803,10 +804,12 @@ function FillColorField({
 
 function ImageField({
   layer,
+  eff,
   effWidth,
   onUpdate,
 }: {
   layer: PsdLayer;
+  eff: EffFn;
   /** 当前生效的 layer 宽（保持不变，基于它按新图比例算新高） */
   effWidth: number;
   onUpdate: (id: string, updates: Partial<PsdLayer>) => void;
@@ -875,9 +878,43 @@ function ImageField({
         type="button"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
-        className="flex h-8 w-full items-center justify-center rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-[12px] text-[#11192D] outline-none transition-colors hover:border-[#bbb] disabled:cursor-not-allowed disabled:opacity-60"
+        className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md bg-[#f5f6f8] outline-none disabled:cursor-not-allowed"
+        aria-label="替换图片"
       >
-        {uploading ? "上传中…" : "替换图片"}
+        {/* 缩略图本体 */}
+        {layer.imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={(eff(layer, "imageUrl") as string | undefined) ?? layer.imageUrl}
+            alt=""
+            className="h-full w-full object-contain"
+            draggable={false}
+          />
+        ) : (
+          <ImageIcon className="size-5 text-[#bbb]" />
+        )}
+
+        {/* hover overlay：替换图片提示 */}
+        <span
+          className={[
+            "pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/55 text-[12px] font-medium text-white transition-opacity duration-150",
+            uploading
+              ? "opacity-100"
+              : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+          ].join(" ")}
+        >
+          {uploading ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              上传中…
+            </>
+          ) : (
+            <>
+              <Upload className="size-3.5" />
+              替换图片
+            </>
+          )}
+        </span>
       </button>
     </>
   );
