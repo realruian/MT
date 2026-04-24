@@ -80,9 +80,13 @@ export function reflowVenueBlocks(
       0,
     );
     const dy = cursor - minY;
-    // 所有 block 成员（含 group 自身）整体平移同一个 dy，保持内部相对位置
-    for (const l of block.layers) {
-      updates.set(l.id, l.y + dy);
+    // dy === 0：该 block 无需位移，不往 updates 里塞任何 key
+    //   → layers 不变、editState.y 不被清除，保留用户在 block 内部的手动 Y 拖动
+    // dy !== 0：整体平移，同时 reflow 清掉成员的 editState.y（D8）
+    if (dy !== 0) {
+      for (const l of block.layers) {
+        updates.set(l.id, l.y + dy);
+      }
     }
     cursor += maxBottom - minY + GAP;
   }
