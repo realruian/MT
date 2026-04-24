@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2, Boxes } from "lucide-react";
+import { Plus, Trash2, Upload, Database, Sparkles, Copy, Check, ImagePlus, ArrowLeft, Loader2, X } from "lucide-react";
 import { PsdManager } from "@/components/admin/psd-manager";
+import { VenueComponentsManager } from "@/components/admin/venue-components-manager";
 
 const CATEGORIES = [
   "全套活动",
@@ -213,7 +214,7 @@ function emptyTemplate(): Partial<TemplateRow> {
 }
 
 export default function AdminPage() {
-  const [adminTab, setAdminTab] = useState<"html" | "psd">("psd");
+  const [adminTab, setAdminTab] = useState<"html" | "psd" | "venue">("psd");
   const [templates, setTemplates] = useState<TemplateRow[]>([]);
   const [editing, setEditing] = useState<Partial<TemplateRow> | null>(null);
   const [loading, setLoading] = useState(true);
@@ -233,6 +234,10 @@ export default function AdminPage() {
   const [uploadedFonts, setUploadedFonts] = useState<{ name: string; url: string; folder: string }[]>([]);
   const [fontFolder, setFontFolder] = useState("");
   const [fontUploading, setFontUploading] = useState(false);
+  const [htmlFilterCategory, setHtmlFilterCategory] = useState<string | null>(
+    null,
+  );
+  const [htmlUploadModalOpen, setHtmlUploadModalOpen] = useState(false);
 
   const fetchTemplates = useCallback(async () => {
     setLoading(true);
@@ -476,22 +481,20 @@ export default function AdminPage() {
               {message}
             </span>
           )}
-          <Link
-            href="/admin/venue-components"
-            className="flex shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-xs text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-700"
-          >
-            <Boxes className="size-3.5" />
-            会场组件
-          </Link>
         </div>
       </header>
 
       {/* Tab 切换栏 */}
       <div className="border-b border-gray-200 bg-white">
         <div className="mx-auto flex max-w-5xl gap-6 px-6">
-          {(["psd", "html"] as const).map((tab) => {
+          {(["psd", "html", "venue"] as const).map((tab) => {
             const active = adminTab === tab;
-            const label = tab === "html" ? "HTML 模板" : "PSD 模板";
+            const label =
+              tab === "html"
+                ? "HTML 模板"
+                : tab === "psd"
+                  ? "PSD 模板"
+                  : "会场组件";
             return (
               <button
                 key={tab}
@@ -517,87 +520,181 @@ export default function AdminPage() {
         </div>
       )}
 
+      {/* 会场组件 Tab */}
+      {adminTab === "venue" && (
+        <div className="mx-auto max-w-6xl p-6">
+          <VenueComponentsManager />
+        </div>
+      )}
+
       {/* HTML Tab */}
       <div className={adminTab === "html" ? "" : "hidden"}>
       <div className="mx-auto max-w-5xl p-6">
-        {/* HTML 上传区 */}
-        {!editing && (
-          <div className="mb-6 rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
-            {htmlUploading ? (
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="size-8 animate-spin text-gray-400" />
-                <p className="text-sm text-gray-500">正在上传并解析 HTML 模板...</p>
-              </div>
-            ) : (
-              <label className="flex cursor-pointer flex-col items-center gap-3">
-                <Upload className="size-8 text-gray-400" />
-                <p className="text-sm text-gray-600">点击选择 HTML 模板文件上传</p>
-                <p className="text-xs text-gray-400">支持 .html 格式，上传后自动识别宽高和可编辑字段</p>
-                <input
-                  type="file"
-                  accept=".html"
-                  className="hidden"
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    setHtmlUploading(true);
-                    try {
-                      const buf = await file.arrayBuffer();
-                      const text = new TextDecoder().decode(buf);
-                      setLastHtmlContent(text);
-                      const wMatch = text.match(/width:\s*(\d+)px/);
-                      const hMatch = text.match(/height:\s*(\d+)px/);
-                      const parsed = parseFieldsFromHtml(text);
-                      const uploadFile = new File([buf], file.name, { type: file.type || "text/html" });
-                      const result = await handleUpload(uploadFile, "templates");
-                      const newTpl = emptyTemplate();
-                      newTpl.name = file.name.replace(/\.html?$/i, "");
-                      if (wMatch) newTpl.width = Number(wMatch[1]);
-                      if (hMatch) newTpl.height = Number(hMatch[1]);
-                      if (result.ok) newTpl.html_file = result.url;
-                      if (parsed.texts.length || parsed.images.length) {
-                        newTpl.editable_fields = {
-                          ...(newTpl.editable_fields ?? { ...EMPTY_FIELDS }),
-                          texts: parsed.texts,
-                          images: parsed.images,
-                        };
+        {/* 上传 HTML Modal */}
+        {htmlUploadModalOpen && !editing && (
+          <AdminHtmlModal
+            title="上传 HTML 模板"
+            onClose={() => {
+              if (htmlUploading) return;
+              setHtmlUploadModalOpen(false);
+            }}
+          >
+            <div className="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center">
+              {htmlUploading ? (
+                <div className="flex flex-col items-center gap-3">
+                  <Loader2 className="size-8 animate-spin text-gray-400" />
+                  <p className="text-sm text-gray-500">正在上传并解析 HTML 模板...</p>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer flex-col items-center gap-3">
+                  <Upload className="size-8 text-gray-400" />
+                  <p className="text-sm text-gray-600">点击选择 HTML 模板文件上传</p>
+                  <p className="text-xs text-gray-400">支持 .html 格式，上传后自动识别宽高和可编辑字段</p>
+                  <input
+                    type="file"
+                    accept=".html"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setHtmlUploading(true);
+                      try {
+                        const buf = await file.arrayBuffer();
+                        const text = new TextDecoder().decode(buf);
+                        setLastHtmlContent(text);
+                        const wMatch = text.match(/width:\s*(\d+)px/);
+                        const hMatch = text.match(/height:\s*(\d+)px/);
+                        const parsed = parseFieldsFromHtml(text);
+                        const uploadFile = new File([buf], file.name, { type: file.type || "text/html" });
+                        const result = await handleUpload(uploadFile, "templates");
+                        const newTpl = emptyTemplate();
+                        newTpl.name = file.name.replace(/\.html?$/i, "");
+                        if (wMatch) newTpl.width = Number(wMatch[1]);
+                        if (hMatch) newTpl.height = Number(hMatch[1]);
+                        if (result.ok) newTpl.html_file = result.url;
+                        if (parsed.texts.length || parsed.images.length) {
+                          newTpl.editable_fields = {
+                            ...(newTpl.editable_fields ?? { ...EMPTY_FIELDS }),
+                            texts: parsed.texts,
+                            images: parsed.images,
+                          };
+                        }
+                        setEditing(newTpl);
+                        setHtmlUploadModalOpen(false);
+                        const parts = ["HTML 已上传"];
+                        if (wMatch || hMatch) parts.push("宽高已解析");
+                        const fc = parsed.texts.length + parsed.images.length;
+                        if (fc > 0) parts.push(`识别到 ${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段`);
+                        const line = parts.join("；") + "。";
+                        setMessage(line);
+                        setFileNotice({ variant: "success", text: line });
+                      } catch (err) {
+                        setMessage(`HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`);
+                      } finally {
+                        setHtmlUploading(false);
                       }
-                      setEditing(newTpl);
-                      const parts = ["HTML 已上传"];
-                      if (wMatch || hMatch) parts.push("宽高已解析");
-                      const fc = parsed.texts.length + parsed.images.length;
-                      if (fc > 0) parts.push(`识别到 ${parsed.texts.length} 个文案字段、${parsed.images.length} 个图片字段`);
-                      const line = parts.join("；") + "。";
-                      setMessage(line);
-                      setFileNotice({ variant: "success", text: line });
-                    } catch (err) {
-                      setMessage(`HTML 上传失败：${err instanceof Error ? err.message : "网络错误"}`);
-                    } finally {
-                      setHtmlUploading(false);
-                    }
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-            )}
-          </div>
+                      e.target.value = "";
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+          </AdminHtmlModal>
         )}
 
         {/* 模板列表 */}
         <div>
-        <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-          <Upload className="size-4" />
-          已有 HTML 模板
-        </h3>
-        {loading ? (
-          <p className="py-10 text-center text-sm text-gray-400">加载中...</p>
-        ) : templates.length === 0 && !editing ? (
-          <p className="py-10 text-center text-sm text-gray-300">
-            暂无 HTML 模板，上传 HTML 文件开始创建
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {templates.map((tpl) => (
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+            <Upload className="size-4" />
+            已有 HTML 模板
+          </h3>
+          <button
+            type="button"
+            onClick={() => setHtmlUploadModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-gray-800"
+          >
+            <Plus className="size-3.5" />
+            上传 HTML 模板
+          </button>
+        </div>
+        {(() => {
+          const visibleCategories = CATEGORIES.filter((c) =>
+            templates.some((t) => t.category === c),
+          );
+          if (visibleCategories.length === 0) return null;
+          return (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setHtmlFilterCategory(null)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs transition-colors",
+                  htmlFilterCategory === null
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                ].join(" ")}
+              >
+                全部
+                <span className="ml-1 text-[11px] opacity-70">
+                  {templates.length}
+                </span>
+              </button>
+              {visibleCategories.map((cat) => {
+                const count = templates.filter(
+                  (t) => t.category === cat,
+                ).length;
+                const active = htmlFilterCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setHtmlFilterCategory(cat)}
+                    className={[
+                      "rounded-full border px-3 py-1 text-xs transition-colors",
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                    ].join(" ")}
+                  >
+                    {cat}
+                    <span className="ml-1 text-[11px] opacity-70">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+        {(() => {
+          const filteredTemplates = htmlFilterCategory
+            ? templates.filter((t) => t.category === htmlFilterCategory)
+            : templates;
+          if (loading) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-400">
+                加载中...
+              </p>
+            );
+          }
+          if (templates.length === 0 && !editing) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-300">
+                暂无 HTML 模板，上传 HTML 文件开始创建
+              </p>
+            );
+          }
+          if (templates.length > 0 && filteredTemplates.length === 0) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-300">
+                当前分类下暂无模板
+              </p>
+            );
+          }
+          return (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {filteredTemplates.map((tpl) => (
               <div key={tpl.id} className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4">
                 <div className="flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-gray-100 bg-gray-50">
                   {tpl.thumbnail ? (
@@ -628,9 +725,10 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
         </div>
 
         {/* 字体管理 */}
@@ -728,13 +826,21 @@ export default function AdminPage() {
           </div>
         </details>
 
-        {/* 编辑表单 */}
+        {/* 编辑 Modal */}
         {editing && (
-          <div className="mt-6 rounded-xl border border-gray-200 bg-white p-6">
-            <h2 className="mb-4 text-sm font-semibold text-gray-900">
-              {editing.id && templates.some((t) => t.id === editing.id) ? "编辑模板" : "新增模板"}
-            </h2>
-
+          <AdminHtmlModal
+            title={
+              editing.id && templates.some((t) => t.id === editing.id)
+                ? "编辑 HTML 模板"
+                : "新增 HTML 模板"
+            }
+            onClose={() => {
+              if (saving) return;
+              setEditing(null);
+              setMessage("");
+              setFileNotice(null);
+            }}
+          >
             {fileNotice && (
               <p
                 role="status"
@@ -1312,9 +1418,44 @@ export default function AdminPage() {
                 {saving ? "保存中..." : "保存"}
               </button>
             </div>
-          </div>
+          </AdminHtmlModal>
         )}
       </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminHtmlModal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-[min(960px,92vw)] overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="关闭"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
       </div>
     </div>
   );

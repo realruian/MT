@@ -13,7 +13,7 @@ import type { PsdLayer } from "@/types/template";
 export const VENUE_COMPONENT_WIDTH = 702;
 
 /** PSD 文件大小上限 */
-export const MAX_PSD_SIZE = 5 * 1024 * 1024;
+export const MAX_PSD_SIZE = 50 * 1024 * 1024;
 /** 用户自上传缩略图大小上限 */
 export const MAX_THUMB_SIZE = 1 * 1024 * 1024;
 /** 自动生成缩略图的目标宽度 */

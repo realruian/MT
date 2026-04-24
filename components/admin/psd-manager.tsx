@@ -83,6 +83,9 @@ export function PsdManager() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [psdFilterCategory, setPsdFilterCategory] = useState<string | null>(
+    null,
+  );
 
   const [parsed, setParsed] = useState<ParsedResult | null>(null);
   const [layers, setLayers] = useState<PsdLayer[]>([]);
@@ -142,6 +145,8 @@ export function PsdManager() {
       return;
     }
 
+    // 互斥：如果当前有编辑 Modal 打开，先关闭它
+    setEditingTpl(null);
     setUploading(true);
     setMessage("正在上传并解析 PSD 文件，请耐心等待...");
     setParsed(null);
@@ -299,6 +304,9 @@ export function PsdManager() {
   }
 
   async function handleStartEdit(tpl: PsdTemplate) {
+    // 互斥：关闭解析 Modal
+    setParsed(null);
+    setLayers([]);
     setEditingTpl(tpl);
     setEditName(tpl.name);
     setEditCategory(tpl.category);
@@ -418,12 +426,17 @@ export function PsdManager() {
         )}
       </div>
 
-      {/* 解析结果 */}
+      {/* 解析结果 Modal */}
       {parsed && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <h3 className="mb-1 text-sm font-semibold text-gray-900">
-            解析结果
-          </h3>
+        <PsdManagerModal
+          title="保存 PSD 模板"
+          onClose={() => {
+            if (saving) return;
+            setParsed(null);
+            setLayers([]);
+            setMessage("");
+          }}
+        >
           <p className="mb-3 text-xs text-gray-400">
             画布 {parsed.template.width} × {parsed.template.height}px ·{" "}
             {layers.length} 个图层
@@ -695,7 +708,7 @@ export function PsdManager() {
               </button>
             </div>
           </div>
-        </div>
+        </PsdManagerModal>
       )}
 
       {/* 已有 PSD 模板列表 */}
@@ -704,15 +717,83 @@ export function PsdManager() {
           <Layers className="size-4" />
           已有 PSD 模板
         </h3>
-        {loading ? (
-          <p className="py-10 text-center text-sm text-gray-400">加载中...</p>
-        ) : psdTemplates.length === 0 ? (
-          <p className="py-10 text-center text-sm text-gray-300">
-            暂无 PSD 模板，上传 PSD 文件开始创建
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {psdTemplates.map((tpl) => (
+        {(() => {
+          const visibleCategories = CATEGORIES.filter((c) =>
+            psdTemplates.some((t) => t.category === c),
+          );
+          if (visibleCategories.length === 0) return null;
+          return (
+            <div className="mb-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setPsdFilterCategory(null)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs transition-colors",
+                  psdFilterCategory === null
+                    ? "border-gray-900 bg-gray-900 text-white"
+                    : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                ].join(" ")}
+              >
+                全部
+                <span className="ml-1 text-[11px] opacity-70">
+                  {psdTemplates.length}
+                </span>
+              </button>
+              {visibleCategories.map((cat) => {
+                const count = psdTemplates.filter(
+                  (t) => t.category === cat,
+                ).length;
+                const active = psdFilterCategory === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setPsdFilterCategory(cat)}
+                    className={[
+                      "rounded-full border px-3 py-1 text-xs transition-colors",
+                      active
+                        ? "border-gray-900 bg-gray-900 text-white"
+                        : "border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-700",
+                    ].join(" ")}
+                  >
+                    {cat}
+                    <span className="ml-1 text-[11px] opacity-70">
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+        {(() => {
+          const filteredPsdTemplates = psdFilterCategory
+            ? psdTemplates.filter((t) => t.category === psdFilterCategory)
+            : psdTemplates;
+          if (loading) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-400">
+                加载中...
+              </p>
+            );
+          }
+          if (psdTemplates.length === 0) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-300">
+                暂无 PSD 模板，上传 PSD 文件开始创建
+              </p>
+            );
+          }
+          if (filteredPsdTemplates.length === 0) {
+            return (
+              <p className="py-10 text-center text-sm text-gray-300">
+                当前分类下暂无模板
+              </p>
+            );
+          }
+          return (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {filteredPsdTemplates.map((tpl) => (
               <div
                 key={tpl.id}
                 className="flex items-center gap-4 rounded-xl border border-gray-100 bg-white p-4"
@@ -753,26 +834,21 @@ export function PsdManager() {
                   </button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
-      {/* 编辑面板 */}
+      {/* 编辑面板 Modal */}
       {editingTpl && (
-        <div className="rounded-xl border border-gray-200 bg-white p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold text-gray-900">
-              编辑模板：{editingTpl.name}
-            </h3>
-            <button
-              onClick={() => setEditingTpl(null)}
-              className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-
+        <PsdManagerModal
+          title={`编辑模板：${editingTpl.name}`}
+          onClose={() => {
+            if (editSaving) return;
+            setEditingTpl(null);
+          }}
+        >
           {/* 基本信息 */}
           <div className="mb-6 grid grid-cols-2 gap-3">
             <label className="flex flex-col gap-1">
@@ -1009,8 +1085,43 @@ export function PsdManager() {
               {editSaving ? "保存中..." : "保存修改"}
             </button>
           </div>
-        </div>
+        </PsdManagerModal>
       )}
+    </div>
+  );
+}
+
+function PsdManagerModal({
+  title,
+  onClose,
+  children,
+}: {
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[90vh] w-[min(960px,92vw)] overflow-y-auto rounded-xl bg-white p-6 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+          <button
+            onClick={onClose}
+            className="flex size-7 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+            aria-label="关闭"
+            type="button"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+        {children}
+      </div>
     </div>
   );
 }
