@@ -364,21 +364,14 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
         setSelected({ layerId: rootLayerId });
       }
 
-      // 双 rAF：等第一帧 setLayers 提交后，再等一帧让 reflow useEffect 跑完，
-      // 读取 reflow 后的 y 位置并平滑滚动到新组件居中显示
-      const capturedId = rootLayerId;
+      // 双 rAF：等 reflow + 画布高度更新完，直接滚到滚动容器最底部
+      // （新组件总是追加到末尾，画布最底就是它的位置）
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          const newLayer = layersRef.current.find((l) => l.id === capturedId);
-          if (!newLayer || !canvasScrollRef.current) return;
-          const s = canvasScaleRef.current;
-          // py-10 = 40px 是 venue 滚动容器内层 wrapper 的顶部 padding
-          const PY_10 = 40;
-          const targetY = PY_10 + newLayer.y * s;
-          const containerH = canvasScrollRef.current.clientHeight;
-          const scrollTop = targetY - containerH / 2 + (newLayer.height * s) / 2;
-          canvasScrollRef.current.scrollTo({
-            top: Math.max(0, scrollTop),
+          const el = canvasScrollRef.current;
+          if (!el) return;
+          el.scrollTo({
+            top: el.scrollHeight,
             behavior: "smooth",
           });
         });

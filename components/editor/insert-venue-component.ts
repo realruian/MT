@@ -5,7 +5,7 @@ import type { VenueComponent } from "./venue-components";
  *  canvas-stage 拖拽换位逻辑也会复用它作为 dropIndicator 与上边界约束。 */
 export const INSERT_GAP = 24;
 /** venue 画布底部预留的空白（px）——最底部内容 + 这个数 = 画布高度 */
-export const CANVAS_BOTTOM_PADDING = 48;
+export const CANVAS_BOTTOM_PADDING = 0;
 /** venue 画布固定宽度（px），与 template 原始 canvasWidth 对齐 */
 export const VENUE_CANVAS_WIDTH = 750;
 /** 插入的会场组件统一 content 宽度（venue 宽 - 左右各 24）= 702 */

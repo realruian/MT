@@ -2,7 +2,7 @@ import type { PsdLayer } from "@/types/template";
 import { extractBlocks } from "./venue-blocks";
 import { isFullCanvasBackground, CANVAS_BOTTOM_PADDING } from "./insert-venue-component";
 
-const TOP_PADDING = 24;
+const TOP_PADDING = 0;
 const GAP = 24;
 const ABSOLUTE_MIN = 200;
 
