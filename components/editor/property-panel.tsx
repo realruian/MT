@@ -142,7 +142,27 @@ export function PropertyPanel({
         <section>
           <h3 className="mb-3 text-[12px] text-[#11192D]">选中模块</h3>
           <div className="grid grid-cols-2 gap-2">
-            <FieldBox label="X">
+            <FieldBox
+              label="X"
+              trailing={
+                <FieldSpinner
+                  onUp={() =>
+                    setModulePos(
+                      selectedGroup,
+                      "x",
+                      String(Math.round(eff(selectedGroup, "x") as number) + 1),
+                    )
+                  }
+                  onDown={() =>
+                    setModulePos(
+                      selectedGroup,
+                      "x",
+                      String(Math.round(eff(selectedGroup, "x") as number) - 1),
+                    )
+                  }
+                />
+              }
+            >
               <input
                 type="number"
                 value={Math.round(eff(selectedGroup, "x") as number)}
@@ -150,7 +170,27 @@ export function PropertyPanel({
                 className={fieldInputCls}
               />
             </FieldBox>
-            <FieldBox label="Y">
+            <FieldBox
+              label="Y"
+              trailing={
+                <FieldSpinner
+                  onUp={() =>
+                    setModulePos(
+                      selectedGroup,
+                      "y",
+                      String(Math.round(eff(selectedGroup, "y") as number) + 1),
+                    )
+                  }
+                  onDown={() =>
+                    setModulePos(
+                      selectedGroup,
+                      "y",
+                      String(Math.round(eff(selectedGroup, "y") as number) - 1),
+                    )
+                  }
+                />
+              }
+            >
               <input
                 type="number"
                 value={Math.round(eff(selectedGroup, "y") as number)}
@@ -195,7 +235,27 @@ export function PropertyPanel({
         <section>
           <h3 className="mb-3 text-[12px] text-[#11192D]">选中元素</h3>
           <div className="grid grid-cols-2 gap-2">
-            <FieldBox label="X">
+            <FieldBox
+              label="X"
+              trailing={
+                <FieldSpinner
+                  onUp={() =>
+                    setNum(
+                      selectedLayer,
+                      "x",
+                      String(Math.round(eff(selectedLayer, "x") as number) + 1),
+                    )
+                  }
+                  onDown={() =>
+                    setNum(
+                      selectedLayer,
+                      "x",
+                      String(Math.round(eff(selectedLayer, "x") as number) - 1),
+                    )
+                  }
+                />
+              }
+            >
               <input
                 type="number"
                 value={Math.round(eff(selectedLayer, "x") as number)}
@@ -203,7 +263,27 @@ export function PropertyPanel({
                 className={fieldInputCls}
               />
             </FieldBox>
-            <FieldBox label="Y">
+            <FieldBox
+              label="Y"
+              trailing={
+                <FieldSpinner
+                  onUp={() =>
+                    setNum(
+                      selectedLayer,
+                      "y",
+                      String(Math.round(eff(selectedLayer, "y") as number) + 1),
+                    )
+                  }
+                  onDown={() =>
+                    setNum(
+                      selectedLayer,
+                      "y",
+                      String(Math.round(eff(selectedLayer, "y") as number) - 1),
+                    )
+                  }
+                />
+              }
+            >
               <input
                 type="number"
                 value={Math.round(eff(selectedLayer, "y") as number)}

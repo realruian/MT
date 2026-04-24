@@ -2,6 +2,7 @@
 
 import { Download, Loader2, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { canNavigate } from "@/lib/navigation-guard";
 
 interface EditorTopbarProps {
   activity?: string;
@@ -56,7 +57,10 @@ export function EditorTopbar({
         <button
           type="button"
           aria-label="关闭编辑器"
-          onClick={() => router.push("/")}
+          onClick={async () => {
+            const ok = await canNavigate("/");
+            if (ok) router.push("/");
+          }}
           className="ml-3 flex size-8 items-center justify-center rounded-lg text-[#666] transition-colors hover:bg-[#f5f5f5] hover:text-[#11192D]"
         >
           <X className="size-5" />

@@ -21,6 +21,9 @@ import {
 } from "./insert-venue-component";
 import { reorderBlockInLayers } from "./venue-blocks";
 import { reflowVenueBlocks } from "./venue-reflow";
+import { sampleBottomEdgeColor } from "@/lib/image-sample";
+import { registerNavigationGuard } from "@/lib/navigation-guard";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export type SlotId = string;
 
@@ -126,6 +129,10 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
   // layers 镜像 ref：供双 rAF 回调读取 reflow 后的最新 y 坐标
   const layersRef = useRef<PsdLayer[]>([]);
   useEffect(() => { layersRef.current = layers; }, [layers]);
+
+  // editState 镜像 ref：供异步采样回调读取最新 overlay，不触发 rerender
+  const editStateRef = useRef<Record<string, Partial<PsdLayer>>>({});
+  useEffect(() => { editStateRef.current = editState; }, [editState]);
 
   // canvas-stage 暴露：滚动容器 + 当前 scale（用于插入组件后自动定位）
   const canvasScrollRef = useRef<HTMLDivElement | null>(null);
@@ -406,6 +413,75 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
     });
   }, [layers, editState, activeSlot.id]);
 
+  /**
+   * venue 画布初始底色自动采样：
+   * - 仅在 venue slot 首次 layers 就绪、且用户还没设过底色时跑
+   * - 找原 PSD 画布最底部那层图（排除运营插入的 instance），采样底边中心色
+   * - 结果缓存到 localStorage (key = venue:autoBg:<templateId>)
+   * - 用户改色后此 effect 不再介入；采样中用户抢先改色也会让结果丢弃
+   * - 写入通过 suppressNextSnapshotRef 绕过 undo 栈，第一次 Ctrl-Z 不会回到白底
+   *
+   * editState 故意不进依赖，避免用户改色后被这个 effect 再次覆盖。
+   */
+  useEffect(() => {
+    if (activeSlot.id !== "venue") return;
+    if (layers.length === 0) return;
+    if (editStateRef.current[VENUE_CANVAS_ID]?.fontColor) return;
+
+    const venueSlot = slots.find((s) => s.id === "venue");
+    if (!venueSlot) return;
+    const templateId = venueSlot.templateId;
+    const cacheKey = `venue:autoBg:${templateId}`;
+
+    const applyColor = (hex: string) => {
+      suppressNextSnapshotRef.current = true;
+      setEditState((prev) => ({
+        ...prev,
+        [VENUE_CANVAS_ID]: { ...prev[VENUE_CANVAS_ID], fontColor: hex },
+      }));
+    };
+
+    try {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        applyColor(cached);
+        return;
+      }
+    } catch {
+      // ignore（隐私模式 / 禁用 localStorage）
+    }
+
+    const candidate = layers
+      .filter(
+        (l) =>
+          l.imageUrl &&
+          !l.instanceId &&
+          l.layerType !== "group" &&
+          (l.layerType === "image" || l.layerType === "background"),
+      )
+      .sort((a, b) => b.y + b.height - (a.y + a.height))[0];
+
+    if (!candidate?.imageUrl) return;
+
+    let cancelled = false;
+    sampleBottomEdgeColor(candidate.imageUrl).then((hex) => {
+      if (cancelled || !hex) return;
+      if (editStateRef.current[VENUE_CANVAS_ID]?.fontColor) return;
+      try {
+        localStorage.setItem(cacheKey, hex);
+      } catch {
+        // ignore
+      }
+      applyColor(hex);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+    // editState 故意不列入 deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSlot.id, slots, layers.length]);
+
   // venue 组件拖拽换位：把被拖 block 在 layers 里整体 splice 到 newIndex 位置，
   // reflow useEffect 自动基于新数组顺序重算所有 y。
   // - 同步 venueInsertedLayersRef 全快照（D7），切走 / 切回 venue 后顺序不回退
@@ -434,6 +510,31 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [layers]);
+
+  // 导航守卫：sidebar Link / topbar X 跳转前先问。dirty 判定
+  //   = editState 有任意键 || venue 已插入过组件
+  // （跟 beforeunload 的信号保持一致，保证两个路径判断不抖）
+  const isDirtyRef = useRef(false);
+  useEffect(() => {
+    const hasEdit = Object.keys(editState).length > 0;
+    const hasInserted = layers.some((l) => l.sourceComponentId != null);
+    isDirtyRef.current = hasEdit || hasInserted;
+  }, [editState, layers]);
+
+  const [leaveConfirm, setLeaveConfirm] = useState<
+    | { resolve: (ok: boolean) => void }
+    | null
+  >(null);
+
+  useEffect(() => {
+    return registerNavigationGuard(
+      () => isDirtyRef.current,
+      () =>
+        new Promise<boolean>((resolve) => {
+          setLeaveConfirm({ resolve });
+        }),
+    );
+  }, []);
 
   // 画布背景色 eff 值 + 编辑回调（走 editState 享受 undo/redo）
   const venueSlot = slots.find((s) => s.id === "venue");
@@ -668,6 +769,23 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
         activeSlot={activeSlot}
         onClose={() => setExportModalOpen(false)}
         onConfirm={handleExportConfirm}
+      />
+
+      <ConfirmDialog
+        open={leaveConfirm !== null}
+        title="离开编辑器？"
+        description="未保存的修改将会丢失"
+        confirmText="离开"
+        cancelText="继续编辑"
+        tone="danger"
+        onConfirm={() => {
+          leaveConfirm?.resolve(true);
+          setLeaveConfirm(null);
+        }}
+        onCancel={() => {
+          leaveConfirm?.resolve(false);
+          setLeaveConfirm(null);
+        }}
       />
     </>
   );

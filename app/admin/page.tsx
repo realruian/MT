@@ -361,7 +361,7 @@ export default function AdminPage() {
       title: "删除 HTML 模板",
       description: (
         <>
-          确定删除模板 <strong>{tpl?.name ?? id}</strong> 吗？此操作不可撤销。
+          模板 <strong>{tpl?.name ?? id}</strong> 及其所有数据将被永久删除
         </>
       ),
       onConfirm: async () => {
@@ -1460,11 +1460,11 @@ function AdminHtmlModal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-[min(960px,92vw)] flex-col rounded-xl bg-white shadow-xl"
+        className="modal-card-enter flex max-h-[90vh] w-[min(960px,92vw)] flex-col rounded-xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-6 py-4">

@@ -78,11 +78,11 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
     <>
       {/* ── 选择弹窗 ── */}
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+        className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center bg-black/40"
         onClick={handleClose}
       >
         <div
-          className="flex h-[616px] w-[1000px] flex-col rounded-[12px] bg-white shadow-xl"
+          className="modal-card-enter flex h-[616px] w-[1000px] flex-col rounded-[12px] bg-white shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题栏 */}
@@ -209,8 +209,8 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
 
       {/* ── 假 AI Loading 全屏遮罩（z-[60]，高于弹窗 z-50） ── */}
       {loading && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
-          <div className="flex items-center gap-2 text-white text-[16px]">
+        <div className="modal-backdrop-enter fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="modal-card-enter flex items-center gap-2 text-white text-[16px]">
             <Loader2 className="size-3.5 animate-spin" />
             <span>AI 正在生成 {pickCount} 个资源位…</span>
           </div>

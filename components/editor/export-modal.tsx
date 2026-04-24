@@ -21,11 +21,11 @@ export function ExportModal({
   if (!open) return null;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      className="modal-backdrop-enter fixed inset-0 z-50 flex items-center justify-center bg-black/40"
       onClick={onClose}
     >
       <div
-        className="flex w-[420px] flex-col rounded-2xl bg-white shadow-xl"
+        className="modal-card-enter flex w-[420px] flex-col rounded-2xl bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[#7C889C]/10 px-6 py-4">

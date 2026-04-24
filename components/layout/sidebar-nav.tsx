@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { canNavigate } from "@/lib/navigation-guard";
 
 const navItems = [
-  { id: "home", src: "/icons/home.svg", label: "首页" },
+  { id: "home", src: "/icons/home.svg", label: "首页", href: "/" },
   { id: "generate", src: "/icons/ai.svg", label: "AI 生成" },
   { id: "album", src: "/icons/album.svg", label: "作品集" },
   { id: "admin", src: "/icons/grid.svg", label: "管理后台", href: "/admin" },
@@ -29,6 +29,7 @@ function getActiveId(pathname: string | null): NavId | null {
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const activeId = getActiveId(pathname);
 
   return (
@@ -44,10 +45,25 @@ export function SidebarNav() {
         ].join(" ");
 
         if ("href" in item && item.href) {
+          const href = item.href;
           return (
-            <Link key={item.id} href={item.href} aria-label={item.label} className={[cls, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-2 rounded-sm"].join(" ")}>
+            <a
+              key={item.id}
+              href={href}
+              aria-label={item.label}
+              className={[cls, "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2a2a2a]/30 focus-visible:ring-offset-2 rounded-sm"].join(" ")}
+              onClick={async (e) => {
+                if (pathname === href) {
+                  e.preventDefault();
+                  return;
+                }
+                e.preventDefault();
+                const ok = await canNavigate(href);
+                if (ok) router.push(href);
+              }}
+            >
               <Image src={item.src} alt="" width={24} height={24} className="size-6 object-contain" aria-hidden />
-            </Link>
+            </a>
           );
         }
 
