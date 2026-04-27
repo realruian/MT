@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Redo2, Undo2 } from "lucide-react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Minus, Plus, Redo2, Undo2 } from "lucide-react";
 import type { Template, PsdLayer } from "@/types/template";
 import { VENUE_CANVAS_ID, type Slot } from "./editor-shell";
 import { extractBlocks } from "./venue-blocks";
@@ -73,12 +73,19 @@ export function CanvasStage({
       : (slot.bgColor ?? "#FFFFFF");
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [scale, setScale] = useState(0.5);
+  // autoScale：ResizeObserver 自动适配窗口；manualScale：用户在胶囊里手动缩放后接管。
+  // 实际生效的 scale = manualScale ?? autoScale。切换 slot 时重置 manualScale 回归自适应。
+  const [autoScale, setAutoScale] = useState(0.5);
+  const [manualScale, setManualScale] = useState<number | null>(null);
+  const scale = manualScale ?? autoScale;
 
   // venue：仅按宽度适配（高度超出垂直滚动）；其他 slot：按宽高都适配（完整显示）。
   // MAX_SCALE = 1 防止小画布被放大模糊；FIT_PADDING 两侧各留 40px 呼吸空间。
   const FIT_PADDING = 40;
   const MAX_SCALE = 1.0;
+  const ZOOM_MIN = 0.1;
+  const ZOOM_MAX = 3.0;
+  const ZOOM_STEP = 0.1;
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -92,16 +99,32 @@ export function CanvasStage({
       const s = isVenue
         ? Math.min(fitWidth, MAX_SCALE)              // venue：宽度适配，高度不参与
         : Math.min(fitWidth, fitHeight, MAX_SCALE);  // 其他：宽高都约束，完整适配
-      setScale(Math.max(0.1, s));
+      setAutoScale(Math.max(0.1, s));
     });
     observer.observe(container);
     return () => observer.disconnect();
   }, [cw, ch, slot.id]);
 
-  // 切换 slot 时滚动回顶部，不保留上一个 slot 的滚动位置
+  // 切换 slot 时：滚动回顶部 + 重置手动缩放，回归自适应
   useEffect(() => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: "instant" });
+    setManualScale(null);
   }, [slot.id]);
+
+  const zoomIn = useCallback(() => {
+    // 对齐到 10% 的整数倍，避免出现 53%/63% 这种碎数字
+    const next = Math.round((scale + ZOOM_STEP) * 10) / 10;
+    setManualScale(Math.min(next, ZOOM_MAX));
+  }, [scale]);
+
+  const zoomOut = useCallback(() => {
+    const next = Math.round((scale - ZOOM_STEP) * 10) / 10;
+    setManualScale(Math.max(next, ZOOM_MIN));
+  }, [scale]);
+
+  const resetZoom = useCallback(() => {
+    setManualScale(null);
+  }, []);
 
   // 把当前 scale 同步给 scaleRef（editor-shell 插入组件后坐标换算用）
   useEffect(() => {
@@ -141,6 +164,52 @@ export function CanvasStage({
     if (!selection?.layerId) return null;
     return layers.find((l) => l.id === selection.layerId) ?? null;
   }, [layers, selection]);
+
+  // 选中文字图层时，用真实 DOM bounding rect 画选中框（修正 PSD bounds 与
+  // CSS line-box 半 leading 错位）。其他类型图层仍用 PSD bounds。
+  const stageOuterRef = useRef<HTMLDivElement>(null);
+  const layerNodeRefs = useRef<Map<string, HTMLElement>>(new Map());
+  const setLayerNodeRef = useCallback(
+    (id: string) => (el: HTMLElement | null) => {
+      if (el) layerNodeRefs.current.set(id, el);
+      else layerNodeRefs.current.delete(id);
+    },
+    [],
+  );
+  const [measuredTextRect, setMeasuredTextRect] = useState<{
+    left: number;
+    top: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  useLayoutEffect(() => {
+    if (!selectedLayer || selectedLayer.layerType !== "text") {
+      setMeasuredTextRect(null);
+      return;
+    }
+    const node = layerNodeRefs.current.get(selectedLayer.id);
+    const outer = stageOuterRef.current;
+    if (!node || !outer) {
+      setMeasuredTextRect(null);
+      return;
+    }
+    const measure = () => {
+      const nr = node.getBoundingClientRect();
+      const or = outer.getBoundingClientRect();
+      setMeasuredTextRect({
+        left: nr.left - or.left,
+        top: nr.top - or.top,
+        width: nr.width,
+        height: nr.height,
+      });
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    ro.observe(outer);
+    return () => ro.disconnect();
+    // editState dep 触发字体/字号/文本变更后的重新测量；scale 触发缩放后重新测量
+  }, [selectedLayer, scale, editState]);
 
   // 画布内原地编辑文字：editingId 为当前处于编辑态的 layerId；draftText 为未提交的输入
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -647,6 +716,7 @@ export function CanvasStage({
       <div className={slot.id === "venue" ? "flex justify-center py-10 min-h-full" : "contents"}>
         {/* 画布块：不再绝对定位，由 flexbox 居中 */}
         <div
+          ref={stageOuterRef}
           onClick={(e) => e.stopPropagation()}
           style={{
             position: "relative",
@@ -773,6 +843,7 @@ export function CanvasStage({
                   return (
                     <div
                       key={layer.id}
+                      ref={setLayerNodeRef(layer.id)}
                       onClick={handleLeafClick}
                       onMouseDown={(e) => handleMouseDown(e, layer)}
                       onDoubleClick={(e) => {
@@ -917,37 +988,59 @@ export function CanvasStage({
               />
             )}
 
-            {/* 元素选中：紫色描边（z=9998，比 Group 蓝框高） */}
-            {selectedLayer && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: (getVal(selectedLayer, "x") as number) * scale - 2,
-                  top: (getVal(selectedLayer, "y") as number) * scale - 2,
-                  width: (getVal(selectedLayer, "width") as number) * scale + 4,
-                  height: (getVal(selectedLayer, "height") as number) * scale + 4,
-                  border: "2px solid #8b5cf6",
-                  borderRadius: 4,
-                  pointerEvents: "none",
-                  zIndex: 9998,
-                }}
-              />
-            )}
+            {/* 元素选中：紫色描边（z=9998，比 Group 蓝框高）。
+                文字图层：用 getBoundingClientRect 实测 line-box，避免 PSD bounds 与
+                CSS 半 leading 错位（参见 measuredTextRect useLayoutEffect）。
+                其他类型：仍按 PSD bounds 缩放渲染。 */}
+            {selectedLayer && (() => {
+              const useMeasured =
+                selectedLayer.layerType === "text" && measuredTextRect != null;
+              const left = useMeasured
+                ? measuredTextRect!.left
+                : (getVal(selectedLayer, "x") as number) * scale;
+              const top = useMeasured
+                ? measuredTextRect!.top
+                : (getVal(selectedLayer, "y") as number) * scale;
+              const width = useMeasured
+                ? measuredTextRect!.width
+                : (getVal(selectedLayer, "width") as number) * scale;
+              const height = useMeasured
+                ? measuredTextRect!.height
+                : (getVal(selectedLayer, "height") as number) * scale;
+              return (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: left - 2,
+                    top: top - 2,
+                    width: width + 4,
+                    height: height + 4,
+                    border: "2px solid #8b5cf6",
+                    borderRadius: 4,
+                    pointerEvents: "none",
+                    zIndex: 9998,
+                  }}
+                />
+              );
+            })()}
           </div>
         </div>
       </div>
 
-      {/* 撤销/重做 + 尺寸信息：合并进同一个圆角胶囊，顶部居中固定 */}
+      {/* 撤销/重做 + 缩放控制 + 尺寸信息：合并进同一个圆角胶囊，顶部居中固定 */}
       {!loading && (
         <div className="pointer-events-none absolute top-5 left-1/2 -translate-x-1/2 z-40">
-          <div className="pointer-events-auto flex items-center gap-0 rounded-full border border-[#7C889C]/10 bg-white px-1 py-1" style={{ boxShadow: "0 0 10px rgba(0,0,0,0.05)" }}>
+          <div
+            className="pointer-events-auto flex items-center gap-0 rounded-full border border-[#7C889C]/10 bg-white px-3 py-1"
+            style={{ boxShadow: "0 0 10px rgba(0,0,0,0.05)" }}
+          >
             {/* 撤销 */}
             <button
               type="button"
               onClick={onUndo}
               disabled={!canUndo}
               title={isMac ? "撤销 (⌘Z)" : "撤销 (Ctrl+Z)"}
-              className="flex size-7 items-center justify-center rounded-full text-[#11192D] transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex size-7 items-center justify-center rounded-full text-grey-primary transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Undo2 className="size-3.5" />
             </button>
@@ -957,16 +1050,41 @@ export function CanvasStage({
               onClick={onRedo}
               disabled={!canRedo}
               title={isMac ? "重做 (⌘⇧Z)" : "重做 (Ctrl+Shift+Z)"}
-              className="flex size-7 items-center justify-center rounded-full text-[#11192D] transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="flex size-7 items-center justify-center rounded-full text-grey-primary transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
             >
               <Redo2 className="size-3.5" />
             </button>
-            {/* 分隔线 */}
-            <div className="mx-1.5 h-4 w-px bg-[#e5e5e5]" />
-            {/* 尺寸 + 缩放 */}
-            <span className="pr-2 text-[11px] text-[#999]">
-              {cw} × {ch} · {Math.round(scale * 100)}%
-            </span>
+            {/* 分隔线（唯一一条，区隔动作组 / 控件区） */}
+            <div className="mx-[5px] h-4 w-px bg-[#e5e5e5]" />
+            {/* 缩小 */}
+            <button
+              type="button"
+              onClick={zoomOut}
+              disabled={scale <= ZOOM_MIN + 0.001}
+              title="缩小"
+              className="flex size-7 items-center justify-center rounded-full text-grey-primary transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Minus className="size-3.5" />
+            </button>
+            {/* 缩放百分比（点击重置为自适应） */}
+            <button
+              type="button"
+              onClick={resetZoom}
+              title="重置为自适应"
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-medium tabular-nums text-grey-primary transition-colors hover:bg-black/5"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            {/* 放大 */}
+            <button
+              type="button"
+              onClick={zoomIn}
+              disabled={scale >= ZOOM_MAX - 0.001}
+              title="放大"
+              className="flex size-7 items-center justify-center rounded-full text-grey-primary transition-colors hover:bg-black/5 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              <Plus className="size-3.5" />
+            </button>
           </div>
         </div>
       )}

@@ -150,7 +150,7 @@ function TabHeader({
           disabled={refreshing}
           aria-label="刷新会场组件库"
           title="刷新会场组件库"
-          className="ml-auto mb-2 flex size-5 items-center justify-center text-[#7C889C] transition-colors hover:text-[#11192D] disabled:opacity-60"
+          className="ml-auto mb-2 flex size-5 items-center justify-center text-grey-tertiary transition-colors hover:text-grey-primary disabled:opacity-60"
         >
           <RefreshCw
             className={[
@@ -180,8 +180,8 @@ function TabButton({
       className={[
         "border-b-2 pb-2 transition-colors",
         active
-          ? "border-[#11192D] text-[#11192D]"
-          : "border-transparent text-[#7C889C] hover:text-[#11192D]",
+          ? "border-[#11192D] text-grey-primary"
+          : "border-transparent text-grey-tertiary hover:text-grey-primary",
       ].join(" ")}
     >
       {children}
@@ -224,7 +224,7 @@ function VenueComponentLibrary({
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-md border border-[#E4E7EC] px-3 py-1 text-[12px] text-[#4F607A] transition-colors hover:bg-[#F5F6F8]"
+          className="rounded-md border border-grey-border px-3 py-1 text-[12px] text-grey-secondary transition-colors hover:bg-grey-50"
         >
           重试
         </button>
@@ -238,7 +238,7 @@ function VenueComponentLibrary({
 
   if (components.length === 0) {
     return (
-      <p className="mt-20 text-center text-[12px] text-[#7C889C]">
+      <p className="mt-20 text-center text-[12px] text-grey-tertiary">
         暂无组件，请到后台上传
       </p>
     );
@@ -276,7 +276,7 @@ function VenueComponentLibrarySkeleton() {
         <section key={g}>
           <h4
             className={[
-              "px-5 mb-2 text-[12px] text-[#7C889C]",
+              "px-5 mb-2 text-[12px] text-grey-tertiary",
               idx === 0 ? "mt-3" : "mt-5",
             ].join(" ")}
           >
@@ -285,10 +285,10 @@ function VenueComponentLibrarySkeleton() {
           <ul className="grid grid-cols-2 items-start gap-2 px-5">
             {[0, 1].map((i) => (
               <li key={i}>
-                <div className="w-full rounded-[8px] bg-[#F5F6F8] p-2">
-                  <div className="aspect-video w-full animate-pulse rounded bg-[#E4E7EC]" />
+                <div className="w-full rounded-[8px] bg-grey-50 p-2">
+                  <div className="aspect-video w-full animate-pulse rounded bg-grey-200" />
                 </div>
-                <div className="mx-auto mt-1.5 h-3 w-12 animate-pulse rounded bg-[#E4E7EC]" />
+                <div className="mx-auto mt-1.5 h-3 w-12 animate-pulse rounded bg-grey-200" />
               </li>
             ))}
           </ul>
@@ -318,14 +318,14 @@ function VenueComponentGroup({
     <section>
       <h4
         className={[
-          "px-5 mb-2 text-[12px] text-[#7C889C]",
+          "px-5 mb-2 text-[12px] text-grey-tertiary",
           isFirst ? "mt-3" : "mt-5",
         ].join(" ")}
       >
         {title}
       </h4>
       {components.length === 0 ? (
-        <p className="mx-5 rounded-[8px] border border-dashed border-[#E4E7EC] py-3 text-center text-[11px] text-[#A9B1BE]">
+        <p className="mx-5 rounded-[8px] border border-dashed border-grey-border py-3 text-center text-[11px] text-grey-disabled">
           暂无组件
         </p>
       ) : (
@@ -368,7 +368,7 @@ function VenueComponentCard({
         <div
           className={[
             "w-full cursor-pointer rounded-[8px] p-2 transition-colors",
-            selected ? "bg-[#E4E7EC]" : "bg-[#F5F6F8] hover:bg-[#EEF0F3]",
+            selected ? "bg-grey-200" : "bg-grey-50 hover:bg-grey-100",
           ].join(" ")}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -379,9 +379,6 @@ function VenueComponentCard({
             draggable={false}
           />
         </div>
-        <p className="mt-1.5 text-center text-[12px] leading-none text-[#4F607A]">
-          {component.name}
-        </p>
       </button>
     </li>
   );
@@ -404,7 +401,7 @@ function SlotsTab({
 
   if (extendedSlots.length === 0) {
     return (
-      <p className="mt-20 text-center text-[12px] leading-6 text-[#7C889C]">
+      <p className="mt-20 text-center text-[12px] leading-6 text-grey-tertiary">
         尚未延展资源位
         <br />
         点击右上角「一键拓展」添加
@@ -445,8 +442,8 @@ function SlotItem({
       className={[
         "group flex h-[44px] w-[216px] items-center rounded-[10px] pl-[2px] pr-2 transition-colors",
         active
-          ? "bg-[#eef0f3]"
-          : "hover:bg-[#f5f6f8]",
+          ? "bg-grey-100"
+          : "hover:bg-grey-50",
       ].join(" ")}
     >
       <button
@@ -454,7 +451,7 @@ function SlotItem({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-center gap-2 text-left"
       >
-        <div className="size-[40px] shrink-0 overflow-hidden rounded-[8px] bg-[#e3e6e9]">
+        <div className="size-[40px] shrink-0 overflow-hidden rounded-[8px] bg-grey-200">
           {slot.thumbnail ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -471,7 +468,7 @@ function SlotItem({
           )}
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 leading-tight">
-          <p className="truncate text-[14px] text-[#4F607A]">{displayName}</p>
+          <p className="truncate text-[14px] text-grey-secondary">{displayName}</p>
           <p className="truncate text-[10px] text-[#999]">
             {slot.width} × {slot.height}
           </p>
@@ -486,7 +483,7 @@ function SlotItem({
           e.stopPropagation();
           onDelete();
         }}
-        className="flex size-6 shrink-0 items-center justify-center rounded text-[#4f607a] opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
+        className="flex size-6 shrink-0 items-center justify-center rounded text-grey-secondary opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
       >
         <X className="size-4" />
       </button>
