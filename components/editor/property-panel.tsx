@@ -2,7 +2,7 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp, ImageIcon, Loader2, Sparkles, Upload } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp, ImageIcon, Loader2, Upload } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import type { FontFamilyDef } from "@/lib/fonts";
 import { AiEditModal } from "./ai-edit-modal";
@@ -1041,7 +1041,13 @@ function ImageField({
         onClick={() => setAiOpen(true)}
         className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-[#11192D] px-3 py-2 text-[14px] font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
       >
-        <Sparkles className="size-3.5" />
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/icons/aigen.svg"
+          alt=""
+          className="size-4 [filter:brightness(0)_invert(1)]"
+          aria-hidden
+        />
         AI 修改
       </button>
 
