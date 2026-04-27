@@ -107,8 +107,8 @@ const WEIGHT_PATTERNS: Array<[RegExp, string]> = [
     /(?:\bHeavy\b|\bBlack\b|\bExtraBold\b|\bUltraBold\b|\bUltrabold\b|\bEB\b|(?:^|[^A-Za-z])H(?:$|[^A-Za-z]))/,
     "800",
   ],
-  // 100: Thin / ExtraLight / UltraLight / XI（方正"纤"）
-  [/(?:\bThin\b|\bExtraLight\b|\bUltraLight\b|\bXI\b|\bExtLight\b)/, "100"],
+  // 100: Thin / ExtraLight / UltraLight / XI（方正"纤"）/ UL（方正 UltraLight 简写）
+  [/(?:\bThin\b|\bExtraLight\b|\bUltraLight\b|\bXI\b|\bExtLight\b|\bUL\b)/, "100"],
   // 600: SemiBold / Demibold / SmBld / SB
   [
     /(?:\bSemiBold\b|\bSemibold\b|\bDemibold\b|\bDemiBold\b|\bSmBld\b|(?:^|[^A-Za-z])SB(?:$|[^A-Za-z]))/,
