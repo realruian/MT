@@ -42,6 +42,19 @@ export const tokens = {
       light: '#e2e8f0',       // slate-200
       focus: '#a5f3fc',       // cyan-200
     },
+    // 中性灰（语义 token，Tailwind v4 @theme 同步暴露）
+    grey: {
+      50: "#F5F6F8",
+      100: "#EAECF0",
+      200: "#E4E7EC",
+      border: "#E5E7EB",
+      text: {
+        primary: "#11192D",
+        secondary: "#4F607A",
+        tertiary: "#7C889C",
+        disabled: "#A9B1BE",
+      },
+    },
     // 状态色
     status: {
       success: '#10b981',

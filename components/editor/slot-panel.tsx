@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { RefreshCw, X } from "lucide-react";
+import { X } from "lucide-react";
 import { VENUE_COMPONENT_GROUPS } from "@/lib/venue-component-groups";
 import type { Slot, SlotId } from "./editor-shell";
 import {
@@ -45,32 +45,27 @@ export function SlotPanel({
   selectedVenueComponentId,
   onSelectVenueComponent,
 }: SlotPanelProps) {
-  // 会场组件库的 fetch 态（升到 SlotPanel 以便 TabHeader 右侧能放 refresh）。
+  // 会场组件库的 fetch 态：
   // - components === null && error === null → 骨架屏
   // - error 非空 → 错误 + 重试
   // - components === [] → 空态
-  // 每次进入编辑器实时拉一次；点 refresh 会触发 load() 重拉
+  // 每次进入编辑器实时拉一次；错误态点"重试"会触发 load() 重拉
   const [components, setComponents] = useState<VenueComponent[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     setError(null);
-    setRefreshing(true);
     try {
       const data = await fetchVenueComponents();
       setComponents(data);
     } catch (e) {
       setError(e instanceof Error ? e.message : "加载失败");
-    } finally {
-      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setRefreshing(true);
       setError(null);
       try {
         const data = await fetchVenueComponents();
@@ -79,8 +74,6 @@ export function SlotPanel({
         if (!cancelled) {
           setError(e instanceof Error ? e.message : "加载失败");
         }
-      } finally {
-        if (!cancelled) setRefreshing(false);
       }
     })();
     return () => {
@@ -90,15 +83,10 @@ export function SlotPanel({
 
   return (
     <aside className="flex w-[256px] shrink-0 flex-col border-r border-[#7C889C]/10">
-      <TabHeader
-        tab={tab}
-        onTabChange={onTabChange}
-        showRefresh={tab === "venue"}
-        refreshing={refreshing}
-        onRefresh={load}
-      />
-      {/* 隐藏滚动条但保留滚动：webkit / firefox / 旧 IE 三端都隐藏 */}
-      <div className="flex-1 overflow-y-auto pb-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+      <TabHeader tab={tab} onTabChange={onTabChange} />
+      {/* 隐藏滚动条但保留滚动：webkit / firefox / 旧 IE 三端都隐藏。mt-6 保证 tab
+          下划线和首条卡片永远有 24px 视觉缓冲，content 滚动时这块空白稳定不动 */}
+      <div className="mt-6 flex-1 overflow-y-auto pb-5 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
         {tab === "venue" ? (
           <VenueComponentLibrary
             components={components}
@@ -125,41 +113,18 @@ export function SlotPanel({
 function TabHeader({
   tab,
   onTabChange,
-  showRefresh,
-  refreshing,
-  onRefresh,
 }: {
   tab: LeftPanelTab;
   onTabChange: (tab: LeftPanelTab) => void;
-  showRefresh: boolean;
-  refreshing: boolean;
-  onRefresh: () => void;
 }) {
   return (
     <div className="flex items-center gap-5 px-5 pt-5 text-[14px]">
       <TabButton active={tab === "venue"} onClick={() => onTabChange("venue")}>
-        会场
+        会场组件
       </TabButton>
       <TabButton active={tab === "slots"} onClick={() => onTabChange("slots")}>
         资源位
       </TabButton>
-      {showRefresh && (
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={refreshing}
-          aria-label="刷新会场组件库"
-          title="刷新会场组件库"
-          className="ml-auto mb-2 flex size-5 items-center justify-center text-grey-tertiary transition-colors hover:text-grey-primary disabled:opacity-60"
-        >
-          <RefreshCw
-            className={[
-              "size-3.5",
-              refreshing ? "animate-spin" : "",
-            ].join(" ")}
-          />
-        </button>
-      )}
     </div>
   );
 }
@@ -173,18 +138,22 @@ function TabButton({
   onClick: () => void;
   children: ReactNode;
 }) {
+  // 下划线长度固定 32px、跟首页 SceneTabBar 一致；通过绝对定位避免随文字宽度拉长
   return (
     <button
       type="button"
       onClick={onClick}
       className={[
-        "border-b-2 pb-2 transition-colors",
+        "relative pb-2 transition-colors",
         active
-          ? "border-[#11192D] text-grey-primary"
-          : "border-transparent text-grey-tertiary hover:text-grey-primary",
+          ? "text-grey-primary"
+          : "text-grey-tertiary hover:text-grey-primary",
       ].join(" ")}
     >
       {children}
+      {active && (
+        <span className="absolute bottom-0 left-1/2 h-[2px] w-[32px] -translate-x-1/2 bg-[#11192D]" />
+      )}
     </button>
   );
 }
@@ -218,13 +187,13 @@ function VenueComponentLibrary({
   if (error) {
     return (
       <div className="mt-20 flex flex-col items-center gap-3 px-5 text-center">
-        <p className="text-[12px] leading-5 text-[#C74856]">
+        <p className="text-[14px] leading-5 text-[#C74856]">
           加载失败：{error}
         </p>
         <button
           type="button"
           onClick={onRetry}
-          className="rounded-md border border-grey-border px-3 py-1 text-[12px] text-grey-secondary transition-colors hover:bg-grey-50"
+          className="rounded-md border border-grey-border px-3 py-1 text-[14px] text-grey-secondary transition-colors hover:bg-grey-50"
         >
           重试
         </button>
@@ -238,7 +207,7 @@ function VenueComponentLibrary({
 
   if (components.length === 0) {
     return (
-      <p className="mt-20 text-center text-[12px] text-grey-tertiary">
+      <p className="mt-20 text-center text-[14px] text-grey-tertiary">
         暂无组件，请到后台上传
       </p>
     );
@@ -252,12 +221,11 @@ function VenueComponentLibrary({
   }
 
   return (
-    <div>
-      {VENUE_COMPONENT_GROUPS.map((g, idx) => (
+    <div className="[&>section]:mx-5 [&>section]:py-5 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+      {VENUE_COMPONENT_GROUPS.map((g) => (
         <VenueComponentGroup
           key={g}
           title={g}
-          isFirst={idx === 0}
           components={byGroup.get(g) ?? []}
           selectedId={selectedId}
           onSelect={onSelect}
@@ -271,24 +239,16 @@ function VenueComponentLibrary({
  *  占位尺寸用 aspect-video（16:9），跟真实卡片的视觉权重接近 */
 function VenueComponentLibrarySkeleton() {
   return (
-    <div>
-      {VENUE_COMPONENT_GROUPS.map((g, idx) => (
+    <div className="[&>section]:mx-5 [&>section]:py-5 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section:first-child]:border-t-0 [&>section:first-child]:pt-0">
+      {VENUE_COMPONENT_GROUPS.map((g) => (
         <section key={g}>
-          <h4
-            className={[
-              "px-5 mb-2 text-[12px] text-grey-tertiary",
-              idx === 0 ? "mt-3" : "mt-5",
-            ].join(" ")}
-          >
-            {g}
-          </h4>
-          <ul className="grid grid-cols-2 items-start gap-2 px-5">
+          <h3 className="mb-3 text-[14px] text-grey-primary">{g}</h3>
+          <ul className="grid grid-cols-2 items-start gap-2">
             {[0, 1].map((i) => (
               <li key={i}>
-                <div className="w-full rounded-[8px] bg-grey-50 p-2">
+                <div className="w-full rounded-[8px] bg-grey-100 p-2">
                   <div className="aspect-video w-full animate-pulse rounded bg-grey-200" />
                 </div>
-                <div className="mx-auto mt-1.5 h-3 w-12 animate-pulse rounded bg-grey-200" />
               </li>
             ))}
           </ul>
@@ -300,8 +260,6 @@ function VenueComponentLibrarySkeleton() {
 
 interface VenueComponentGroupProps {
   title: string;
-  /** 是否是第一组（影响顶部 margin：首组 mt-3、后续组 mt-5） */
-  isFirst: boolean;
   components: VenueComponent[];
   selectedId: string | null;
   onSelect: (component: VenueComponent) => void;
@@ -309,32 +267,23 @@ interface VenueComponentGroupProps {
 
 function VenueComponentGroup({
   title,
-  isFirst,
   components,
   selectedId,
   onSelect,
 }: VenueComponentGroupProps) {
   return (
     <section>
-      <h4
-        className={[
-          "px-5 mb-2 text-[12px] text-grey-tertiary",
-          isFirst ? "mt-3" : "mt-5",
-        ].join(" ")}
-      >
-        {title}
-      </h4>
+      <h3 className="mb-3 text-[14px] text-grey-primary">{title}</h3>
       {components.length === 0 ? (
-        <p className="mx-5 rounded-[8px] border border-dashed border-grey-border py-3 text-center text-[11px] text-grey-disabled">
+        <p className="rounded-[8px] border border-dashed border-grey-border py-3 text-center text-[11px] text-grey-disabled">
           暂无组件
         </p>
       ) : (
-        <ul className="grid grid-cols-2 items-start gap-2 px-5">
+        <ul className="grid grid-cols-2 items-start gap-2">
           {components.map((c) => (
             <VenueComponentCard
               key={c.id}
               component={c}
-              selected={c.id === selectedId}
               onSelect={() => onSelect(c)}
             />
           ))}
@@ -346,17 +295,15 @@ function VenueComponentGroup({
 
 interface VenueComponentCardProps {
   component: VenueComponent;
-  selected: boolean;
   onSelect: () => void;
 }
 
 function VenueComponentCard({
   component,
-  selected,
   onSelect,
 }: VenueComponentCardProps) {
   // 会场组件卡片：宽度由 grid 单元格撑满（w-full），高度由缩略图 intrinsic
-  // aspect ratio 决定（img 用 w-full h-auto）。外壳 p-2 提供 8px 统一灰边，
+  // aspect ratio 决定（img 用 w-full h-auto）。外壳 p-2 提供 8px hover 灰底，
   // 任意比例的缩略图都能直接显示，不裁切不拉伸。
   return (
     <li>
@@ -365,12 +312,7 @@ function VenueComponentCard({
         onClick={onSelect}
         className="flex w-full flex-col items-center"
       >
-        <div
-          className={[
-            "w-full cursor-pointer rounded-[8px] p-2 transition-colors",
-            selected ? "bg-grey-200" : "bg-grey-50 hover:bg-grey-100",
-          ].join(" ")}
-        >
+        <div className="w-full cursor-pointer overflow-hidden rounded-[4px] transition-shadow hover:shadow-[0_4px_10px_rgba(17,25,45,0.1)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={component.thumbnail}
@@ -401,7 +343,7 @@ function SlotsTab({
 
   if (extendedSlots.length === 0) {
     return (
-      <p className="mt-20 text-center text-[12px] leading-6 text-grey-tertiary">
+      <p className="mt-20 text-center text-[14px] leading-6 text-grey-tertiary">
         尚未延展资源位
         <br />
         点击右上角「一键拓展」添加

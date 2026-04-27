@@ -29,17 +29,6 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
     });
   }
 
-  function toggleAllInGroup(preset: SlotPreset) {
-    const keys = preset.sizes.map((s) => keyOf(preset.id, s.id));
-    const allSelected = keys.every((k) => selected.has(k));
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (allSelected) keys.forEach((k) => next.delete(k));
-      else keys.forEach((k) => next.add(k));
-      return next;
-    });
-  }
-
   async function runFakeAiAnimation() {
     await new Promise<void>((resolve) => setTimeout(resolve, 3500));
   }
@@ -82,20 +71,20 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
         onClick={handleClose}
       >
         <div
-          className="modal-card-enter flex h-[616px] w-[1000px] flex-col rounded-[12px] bg-white shadow-xl"
+          className="modal-card-enter flex h-[616px] w-[720px] flex-col rounded-[12px] bg-white shadow-xl"
           onClick={(e) => e.stopPropagation()}
         >
           {/* 标题栏 */}
           <div className="flex items-center justify-between px-6 pb-3 pt-6">
-            <h2 className="text-[20px] font-medium text-[#11192D]">
-              选择需要新增的渠道尺寸
+            <h2 className="text-[20px] font-medium text-grey-primary">
+              选择需要新增的资源位
             </h2>
             <button
               type="button"
               aria-label="关闭"
               onClick={handleClose}
               disabled={loading}
-              className="flex size-8 items-center justify-center text-[#7c889c] transition-colors hover:text-[#11192D] disabled:opacity-30"
+              className="flex size-8 items-center justify-center text-grey-tertiary transition-colors hover:text-grey-primary disabled:opacity-30"
             >
               <X className="size-5" />
             </button>
@@ -104,28 +93,16 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
           {/* 分组列表 */}
           <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-6 py-3">
             {SLOT_PRESETS.map((preset) => {
-              const keys = preset.sizes.map((s) => keyOf(preset.id, s.id));
-              const allSelected = keys.every((k) => selected.has(k));
               return (
                 <div
                   key={preset.id}
-                  className="h-[74px] rounded-[10px] bg-[#F4F6F8] px-4 py-3"
+                  className="h-[74px] rounded-[10px] bg-grey-50 px-6 py-3"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
-                        <span className="text-[14px] font-normal text-[#11192D]">
+                        <span className="text-[14px] font-normal text-grey-primary">
                           {preset.name}
-                        </span>
-                        <span
-                          className={[
-                            "inline-flex h-[18px] items-center rounded-[4px] px-1.5 text-[11px] leading-none",
-                            preset.channel === "外卖"
-                              ? "bg-[#FFECB3] text-[#8A6100]"
-                              : "bg-[#E4E7EC] text-[#4F607A]",
-                          ].join(" ")}
-                        >
-                          {preset.channel}
                         </span>
                       </div>
                       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
@@ -135,7 +112,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                           return (
                             <label
                               key={size.id}
-                              className="flex cursor-pointer items-center gap-2 text-[14px] text-[#11192D]"
+                              className="flex cursor-pointer items-center gap-2 text-[14px] text-grey-primary"
                             >
                               <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
                                 <input
@@ -167,13 +144,6 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                         })}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => toggleAllInGroup(preset)}
-                      className="shrink-0 text-[14px] font-normal text-[#7c889c] transition-colors hover:text-[#11192D]"
-                    >
-                      {allSelected ? "取消全选" : "全选"}
-                    </button>
                   </div>
                 </div>
               );
@@ -181,8 +151,8 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
           </div>
 
           {/* 底部操作区 */}
-          <div className="flex items-center justify-between px-6 pb-6 pt-3">
-            <span className="text-[14px] font-light text-[#7c889c]">
+          <div className="flex items-end justify-between px-6 pb-6 pt-10">
+            <span className="text-[14px] font-normal leading-8 text-grey-tertiary">
               当前已选择 {selected.size} 个需要延展的尺寸
             </span>
             <div className="flex gap-2">
@@ -190,7 +160,7 @@ export function ExtendModal({ open, onClose, onConfirm }: ExtendModalProps) {
                 type="button"
                 onClick={handleClose}
                 disabled={loading}
-                className="h-8 rounded-[8px] bg-[#E9ECF1] px-3 text-[14px] font-medium text-[#7C889C] transition-colors hover:bg-[#dde1e8] disabled:opacity-40"
+                className="h-8 rounded-[8px] bg-[#F7F8FA] px-3 text-[14px] font-medium text-[#7C889C] transition-colors hover:bg-grey-100 disabled:opacity-40"
               >
                 取消
               </button>

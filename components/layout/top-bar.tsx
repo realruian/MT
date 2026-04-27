@@ -13,7 +13,7 @@ export function TopBar() {
             className="size-full object-cover"
           />
         </div>
-        <span className="text-[12px] text-[#11192d]">业务</span>
+        <span className="text-[14px] text-[#11192d]">业务</span>
       </div>
     </div>
   );

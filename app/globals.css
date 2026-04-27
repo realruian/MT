@@ -67,6 +67,15 @@
   --color-surface-card-solid: #ffffff;
   --color-surface-sidebar: rgba(248, 250, 252, 0.8);
 
+  --color-grey-50: #f5f6f8;
+  --color-grey-100: #eaecf0;
+  --color-grey-200: #e4e7ec;
+  --color-grey-border: #e5e7eb;
+  --color-grey-primary: #11192d;
+  --color-grey-secondary: #4f607a;
+  --color-grey-tertiary: #7c889c;
+  --color-grey-disabled: #a9b1be;
+
   --width-sidebar: 48px;
   --container-content: 1300px;
 

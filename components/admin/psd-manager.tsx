@@ -1018,7 +1018,7 @@ export function PsdManager() {
                             <p className="truncate text-xs font-medium text-gray-800">
                               {layer.name}
                             </p>
-                            <p className="text-[12px] text-gray-400">
+                            <p className="text-[14px] text-gray-400">
                               {layer.x},{layer.y} · {layer.width}×{layer.height}
                             </p>
                           </div>
@@ -1086,7 +1086,7 @@ export function PsdManager() {
                                   <p className="mt-0.5 rounded bg-white px-2 py-1 text-gray-800">
                                     {layer.textContent}
                                   </p>
-                                  <div className="mt-1.5 flex gap-3 text-[12px]">
+                                  <div className="mt-1.5 flex gap-3 text-[14px]">
                                     {layer.fontFamily && (
                                       <span className="text-gray-500">
                                         字体: {layer.fontFamily}

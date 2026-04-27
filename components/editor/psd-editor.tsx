@@ -737,7 +737,7 @@ export function PsdEditor({ template }: { template: Template }) {
             type="button"
             onClick={handleExport}
             disabled={exporting || loading}
-            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-[#11192D] transition-colors hover:bg-[#e5e5e5] active:scale-[0.98] disabled:opacity-40"
+            className="flex w-full items-center justify-center gap-2 rounded-button bg-white px-4 py-2.5 text-sm font-medium text-grey-primary transition-colors hover:bg-grey-100 active:scale-[0.98] disabled:opacity-40"
           >
             {exporting ? (
               <Loader2 className="size-4 animate-spin" />
@@ -779,7 +779,7 @@ export function PsdEditor({ template }: { template: Template }) {
                     {layer.name}
                   </span>
                   {(layer.locked === true || String(layer.locked) === "true") && <span title="位置已锁定" className="ml-auto"><Lock className="size-3 text-amber-400" /></span>}
-                  {isSel && !(layer.locked === true || String(layer.locked) === "true") && <span className="ml-auto text-[12px] text-blue-400">已选中</span>}
+                  {isSel && !(layer.locked === true || String(layer.locked) === "true") && <span className="ml-auto text-[14px] text-blue-400">已选中</span>}
                 </div>
 
                 {!(layer.locked === true || String(layer.locked) === "true") && (

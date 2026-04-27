@@ -22,7 +22,7 @@ export function TemplateCard({ template }: { template: Template }) {
           </span>
           <Link
             href={`/editor/${template.id}?activity=${encodeURIComponent(template.name)}`}
-            className="flex h-[28px] w-full items-center justify-center rounded-[6px] bg-[#ff6813] text-[12px] font-medium text-white transition-colors duration-150 hover:bg-[#e85d0f]"
+            className="flex h-[28px] w-full items-center justify-center rounded-[6px] bg-[#ff6813] text-[14px] font-medium text-white transition-colors duration-150 hover:bg-[#e85d0f]"
           >
             在线编辑
           </Link>

@@ -24,10 +24,10 @@ export function EditorTopbar({
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-[#7C889C]/10 px-5">
       {/* 面包屑 */}
-      <div className="flex items-center gap-2 text-[16px] text-[#666]">
+      <div className="flex items-center gap-2 text-[16px] text-grey-secondary">
         <span>全套延展</span>
         <span className="text-[#aaa]">·</span>
-        <span className="text-[#11192D]">{activity || "未命名活动"}</span>
+        <span className="text-grey-primary">{activity || "未命名活动"}</span>
       </div>
 
       {/* 右侧操作 */}
@@ -36,7 +36,7 @@ export function EditorTopbar({
           <button
             type="button"
             onClick={onExtend}
-            className="h-8 rounded-lg bg-[#E9ECF1] px-3 text-[16px] font-medium text-[#11192D] transition-colors hover:bg-[#dde1e8]"
+            className="h-8 rounded-lg bg-grey-100 px-3 text-[16px] font-medium text-grey-primary transition-colors hover:bg-grey-200"
           >
             一键拓展
           </button>
@@ -61,7 +61,7 @@ export function EditorTopbar({
             const ok = await canNavigate("/");
             if (ok) router.push("/");
           }}
-          className="ml-3 flex size-8 items-center justify-center rounded-lg text-[#666] transition-colors hover:bg-[#f5f5f5] hover:text-[#11192D]"
+          className="ml-3 flex size-8 items-center justify-center rounded-lg text-grey-secondary transition-colors hover:bg-grey-50 hover:text-grey-primary"
         >
           <X className="size-5" />
         </button>

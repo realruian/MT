@@ -48,7 +48,7 @@ function normalizeWeight(w: string | undefined): string {
 
 /** 输入框通用样式 */
 const inputCls =
-  "h-8 rounded-md border border-grey-border bg-grey-50 px-2 text-[12px] text-grey-primary outline-none focus:border-[#bbb]";
+  "h-8 rounded-md border border-grey-border bg-grey-50 px-2 text-[14px] text-grey-primary outline-none focus:border-[#bbb]";
 export function PropertyPanel({
   template,
   layers,
@@ -137,11 +137,11 @@ export function PropertyPanel({
     selectedLayer?.layerType === "background";
 
   return (
-    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#7C889C]/10 [&>section]:mx-3 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section]:py-5 [&>section:first-child]:border-t-0">
+    <aside className="flex w-[240px] shrink-0 flex-col overflow-y-auto border-l border-[#7C889C]/10 [&>section]:mx-5 [&>section]:border-t [&>section]:border-[#7C889C]/10 [&>section]:py-5 [&>section:first-child]:border-t-0">
       {/* 状态 1：什么都没选中 → 显示画布尺寸 + (venue 下) 画布背景色编辑 */}
       {!selectedLayer && !selectedGroup && (
         <section>
-          <h3 className="mb-3 text-[12px] text-grey-primary">画布尺寸</h3>
+          <h3 className="mb-3 text-[14px] text-grey-primary">画布尺寸</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox label="W">
               <FieldValue>{canvasW}</FieldValue>
@@ -152,7 +152,7 @@ export function PropertyPanel({
           </div>
           {isVenue && (
             <>
-              <h3 className="mt-5 mb-3 text-[12px] text-grey-primary">画布背景</h3>
+              <h3 className="mt-5 mb-3 text-[14px] text-grey-primary">画布背景</h3>
               <CanvasBgColorRow
                 value={canvasBgColor}
                 onChange={onCanvasBgColorChange}
@@ -165,7 +165,7 @@ export function PropertyPanel({
       {/* 仅一级选中模块：选中模块 X/Y 可编辑，W/H readonly；delta 同步应用到子图层 */}
       {!selectedLayer && selectedGroup && (
         <section>
-          <h3 className="mb-3 text-[12px] text-grey-primary">选中模块</h3>
+          <h3 className="mb-3 text-[14px] text-grey-primary">选中模块</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox
               label="X"
@@ -240,14 +240,14 @@ export function PropertyPanel({
               disabled
               title="即将支持"
               onClick={() => onReplaceModule(selectedGroup.id)}
-              className="flex-1 cursor-not-allowed rounded-md border border-grey-border bg-grey-50 px-3 py-2 text-[12px] text-grey-disabled"
+              className="flex-1 cursor-not-allowed rounded-md border border-grey-border bg-grey-50 px-3 py-2 text-[14px] text-grey-disabled"
             >
               替换
             </button>
             <button
               type="button"
               onClick={() => onDeleteModule(selectedGroup.id)}
-              className="flex-1 rounded-md border border-red-200 bg-white px-3 py-2 text-[12px] text-red-500 hover:bg-red-50"
+              className="flex-1 rounded-md border border-red-200 bg-white px-3 py-2 text-[14px] text-red-500 hover:bg-red-50"
             >
               删除
             </button>
@@ -258,7 +258,7 @@ export function PropertyPanel({
       {/* 状态 2 / 3：选中元素 → 公共的 X/Y/W/H 网格 */}
       {selectedLayer && (
         <section>
-          <h3 className="mb-3 text-[12px] text-grey-primary">选中元素</h3>
+          <h3 className="mb-3 text-[14px] text-grey-primary">选中元素</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox
               label="X"
@@ -397,7 +397,7 @@ export function PropertyPanel({
       {selectedLayer && isText && (
         <>
           <section>
-            <h3 className="mb-3 text-[12px] text-grey-primary">文字</h3>
+            <h3 className="mb-3 text-[14px] text-grey-primary">文字</h3>
             <TextFields
               layer={selectedLayer}
               eff={eff}
@@ -407,7 +407,7 @@ export function PropertyPanel({
             />
           </section>
           <section>
-            <h3 className="mb-3 text-[12px] text-grey-primary">填充颜色</h3>
+            <h3 className="mb-3 text-[14px] text-grey-primary">填充颜色</h3>
             <FillColorField
               layer={selectedLayer}
               eff={eff}
@@ -421,7 +421,7 @@ export function PropertyPanel({
       {/* 状态 3：图片元素专属 —— 替换图片 */}
       {selectedLayer && isImage && (
         <section>
-          <h3 className="mb-3 text-[12px] text-grey-primary">图片</h3>
+          <h3 className="mb-3 text-[14px] text-grey-primary">图片</h3>
           <ImageField
             layer={selectedLayer}
             eff={eff}
@@ -434,7 +434,7 @@ export function PropertyPanel({
       {/* 图片元素：单独的不透明度（文字元素的不透明度已合并进填充颜色） */}
       {selectedLayer && isImage && (
         <section>
-          <h3 className="mb-3 text-[12px] text-grey-primary">不透明度</h3>
+          <h3 className="mb-3 text-[14px] text-grey-primary">不透明度</h3>
           <OpacityField layer={selectedLayer} eff={eff} setNum={setNum} />
         </section>
       )}
@@ -473,7 +473,7 @@ function FieldBox({
         .join(" ")}
     >
       {label != null && (
-        <span className="flex shrink-0 items-center text-[12px] text-grey-tertiary">
+        <span className="flex shrink-0 items-center text-[14px] text-grey-tertiary">
           {label}
         </span>
       )}
@@ -490,7 +490,7 @@ function FieldBox({
 /** 胶囊内 readonly 数值展示 */
 function FieldValue({ children }: { children: ReactNode }) {
   return (
-    <span className="min-w-0 flex-1 truncate text-[12px] text-grey-primary">
+    <span className="min-w-0 flex-1 truncate text-[14px] text-grey-primary">
       {children}
     </span>
   );
@@ -498,12 +498,12 @@ function FieldValue({ children }: { children: ReactNode }) {
 
 /** 胶囊内 number input（隐藏 spinner 箭头 + 透明底） */
 const fieldInputCls =
-  "min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  "min-w-0 flex-1 bg-transparent text-[14px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 /** 胶囊内 select（appearance-none 去掉浏览器原生箭头 + 透明底 + pointer-events-none：
  *  只允许点击右侧 chevron 按钮触发下拉，禁用在文字上直接点开，保留键盘 tab/space 访问） */
 const fieldSelectCls =
-  "min-w-0 flex-1 pointer-events-none appearance-none bg-transparent text-[12px] text-grey-primary outline-none";
+  "min-w-0 flex-1 pointer-events-none appearance-none bg-transparent text-[14px] text-grey-primary outline-none";
 
 /** 胶囊内下拉选择字段：chevron 是唯一的鼠标触发点。
  *  用 showPicker() 打开原生下拉，Chrome 99+/Firefox 106+/Safari 17.4+ 支持。 */
@@ -815,7 +815,7 @@ function CanvasBgColorRow({
           const raw = e.target.value.trim().replace(/^#/, "");
           onChange(raw ? `#${raw}` : "#ffffff");
         }}
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[14px] text-grey-primary outline-none"
       />
     </div>
   );
@@ -868,7 +868,7 @@ function FillColorField({
           const raw = e.target.value.trim().replace(/^#/, "");
           setStr(layer, "fontColor", raw ? `#${raw}` : "#000000");
         }}
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[14px] text-grey-primary outline-none"
       />
 
       {/* 竖向分隔线 */}
@@ -883,9 +883,9 @@ function FillColorField({
         onChange={(e) =>
           setNum(layer, "opacity", String(Number(e.target.value) / 100))
         }
-        className="w-8 min-w-0 bg-transparent text-right text-[12px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-8 min-w-0 bg-transparent text-right text-[14px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
-      <span className="shrink-0 text-[12px] text-grey-primary">%</span>
+      <span className="shrink-0 text-[14px] text-grey-primary">%</span>
     </div>
   );
 }
@@ -985,7 +985,7 @@ function ImageField({
         {/* hover overlay：替换图片提示 */}
         <span
           className={[
-            "pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/55 text-[12px] font-medium text-white transition-opacity duration-150",
+            "pointer-events-none absolute inset-0 flex items-center justify-center gap-1.5 bg-black/55 text-[14px] font-medium text-white transition-opacity duration-150",
             uploading
               ? "opacity-100"
               : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",

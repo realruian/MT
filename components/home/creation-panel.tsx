@@ -75,7 +75,7 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
         ) : (
           <label
             htmlFor="image-upload"
-            className="flex size-[80px] cursor-pointer flex-col items-center justify-center gap-1 rounded-[8px] border border-dashed border-[#eee] transition-colors duration-150 hover:bg-[#fafafa]"
+            className="flex size-[80px] cursor-pointer flex-col items-center justify-center gap-1 rounded-[8px] border border-dashed border-grey-border transition-colors duration-150 hover:bg-grey-50"
             aria-label="上传参考图片"
           >
             <Image
@@ -85,7 +85,7 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
               height={20}
               aria-hidden
             />
-            <span className="text-[12px] text-[#7c889c]">上传图片</span>
+            <span className="text-[14px] text-grey-tertiary">上传图片</span>
           </label>
         )}
       </div>
@@ -105,7 +105,7 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
             onChange={(e) => setPrompt(e.target.value)}
             autoComplete="off"
             placeholder="请在此输入您的设计要求，词条越详细，生成效果越精准哦～"
-            className="mt-2 w-full resize-none border-0 bg-transparent text-[14px] leading-[14px] text-[#7c889c] outline-none placeholder:text-[#7c889c] focus:ring-0"
+            className="mt-2 w-full resize-none border-0 bg-transparent text-[14px] leading-[14px] text-grey-tertiary outline-none placeholder:text-grey-tertiary focus:ring-0"
           />
         </div>
 
@@ -115,10 +115,10 @@ export function CreationPanel({ activeScene }: CreationPanelProps) {
             {modes.map(({ id, label }) => {
               const pressed = activeMode === id;
               const cls = [
-                "rounded-[12px] border px-5 py-2.5 text-[12px] font-normal leading-none transition-colors duration-150",
+                "rounded-[12px] border px-5 py-2.5 text-[14px] font-normal leading-none transition-colors duration-150",
                 pressed
                   ? "border-[#11192d] bg-[#11192d] text-white"
-                  : "border-[#eee] text-[#7c889c] hover:border-[#ccc] hover:text-[#11192d]",
+                  : "border-grey-border text-grey-tertiary hover:border-[#ccc] hover:text-grey-primary",
               ].join(" ");
               return (
                 <button

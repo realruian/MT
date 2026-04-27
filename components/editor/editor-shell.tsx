@@ -677,7 +677,7 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
   }
 
   async function handleExportConfirm(scope: "all" | "current") {
-    setExportModalOpen(false);
+    // 弹窗保持打开：让用户在选中卡上看到 spinner；导出完毕再统一关闭
     setExporting(true);
     try {
       const targets = scope === "current" ? [activeSlot] : slots;
@@ -688,6 +688,7 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
       alert(err instanceof Error ? err.message : "导出失败");
     } finally {
       setExporting(false);
+      setExportModalOpen(false);
     }
   }
 
@@ -767,6 +768,7 @@ export function EditorShell({ template, activity, isVenueMode = false }: EditorS
         open={exportModalOpen}
         slots={slots}
         activeSlot={activeSlot}
+        exporting={exporting}
         onClose={() => setExportModalOpen(false)}
         onConfirm={handleExportConfirm}
       />

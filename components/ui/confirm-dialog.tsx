@@ -1,5 +1,6 @@
 "use client";
 
+import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
 export interface ConfirmDialogProps {
@@ -14,6 +15,16 @@ export interface ConfirmDialogProps {
   onCancel: () => void;
 }
 
+/**
+ * 二次确认弹窗：左对齐标题 + 右上 X + 左对齐正文 + 右下两按钮，跟一键拓展弹窗
+ * 同款语言。`tone="danger"` 用深红填充按钮（删除态），`tone="primary"`（默认）
+ * 用主色填充按钮。
+ *
+ * 字号规范（4-base，14 作为正文锚点）：
+ *   - 标题 16px / Medium
+ *   - 正文 14px / Regular
+ *   - 按钮 14px / Medium
+ */
 export function ConfirmDialog({
   open,
   title,
@@ -29,7 +40,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="modal-backdrop-enter fixed inset-0 z-[60] flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]"
+      className="modal-backdrop-enter fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4"
       onClick={() => !busy && onCancel()}
       role="alertdialog"
       aria-modal="true"
@@ -37,34 +48,47 @@ export function ConfirmDialog({
       aria-describedby="confirm-dialog-desc"
     >
       <div
-        className="modal-card-enter w-[min(320px,92vw)] overflow-hidden rounded-[14px] bg-white/95 shadow-[0_20px_48px_-12px_rgba(17,25,45,0.25)] backdrop-blur-xl"
+        className="modal-card-enter flex w-[min(420px,92vw)] flex-col rounded-[12px] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* 内容区：居中标题 + 居中正文 */}
-        <div className="px-5 pb-4 pt-5 text-center">
+        {/* 标题栏：左对齐标题 + 右上 X */}
+        <div className="flex items-center justify-between px-6 pb-3 pt-6">
           <h3
             id="confirm-dialog-title"
-            className="text-[15px] font-semibold leading-tight tracking-[-0.01em] text-[#11192D]"
+            className="text-[16px] font-medium text-grey-primary"
           >
             {title}
           </h3>
-          {description && (
+          <button
+            type="button"
+            aria-label="关闭"
+            onClick={onCancel}
+            disabled={busy}
+            className="flex size-8 items-center justify-center text-grey-tertiary transition-colors hover:text-grey-primary disabled:opacity-30"
+          >
+            <X className="size-5" />
+          </button>
+        </div>
+
+        {/* 正文（左对齐） */}
+        {description && (
+          <div className="px-6">
             <p
               id="confirm-dialog-desc"
-              className="mt-2 text-[13px] leading-[1.45] text-[#5B6475]"
+              className="text-[14px] leading-[1.5] text-grey-secondary"
             >
               {description}
             </p>
-          )}
-        </div>
+          </div>
+        )}
 
-        {/* 底部按钮区：两列等宽，细线分隔（Apple 风） */}
-        <div className="grid grid-cols-2 border-t border-[#E5E7EB]">
+        {/* 底部按钮：右下，取消（浅灰底）+ 确认（深色填充 / danger 用深红） */}
+        <div className="flex justify-end gap-2 px-6 pb-6 pt-6">
           <button
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="h-11 text-[15px] font-normal text-[#11192D] transition-colors hover:bg-[#F5F6F8] disabled:opacity-40"
+            className="h-8 rounded-[8px] bg-[#F7F8FA] px-3 text-[14px] font-medium text-[#7C889C] transition-colors hover:bg-grey-100 disabled:opacity-40"
           >
             {cancelText}
           </button>
@@ -73,10 +97,10 @@ export function ConfirmDialog({
             onClick={onConfirm}
             disabled={busy}
             className={[
-              "h-11 border-l border-[#E5E7EB] text-[15px] font-semibold transition-colors disabled:opacity-40",
+              "h-8 rounded-[8px] px-3 text-[14px] font-medium text-white transition-colors disabled:cursor-not-allowed disabled:opacity-40",
               tone === "danger"
-                ? "text-[#E5322D] hover:bg-[#FEF2F2]"
-                : "text-[#0A84FF] hover:bg-[#F0F8FF]",
+                ? "bg-[#E5322D] hover:bg-[#C72A26]"
+                : "bg-[#11192D] hover:bg-black",
             ].join(" ")}
           >
             {busy ? "处理中…" : confirmText}
