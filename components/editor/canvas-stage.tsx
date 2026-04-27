@@ -165,8 +165,12 @@ export function CanvasStage({
     return layers.find((l) => l.id === selection.layerId) ?? null;
   }, [layers, selection]);
 
-  // 选中文字图层时，用真实 DOM bounding rect 画选中框（修正 PSD bounds 与
-  // CSS line-box 半 leading 错位）。其他类型图层仍用 PSD bounds。
+  // 选中文字图层时，用 DOM rect + canvas measureText 联合算出可见笔画 (ink-box) 位置。
+  // 步骤：
+  //   1. getBoundingClientRect 拿到 line-box 在屏幕上的位置（含半 leading 留白）
+  //   2. canvas.measureText 拿到当前字体/字号下文字的 fontBoundingBox 和 actualBoundingBox
+  //   3. 由此算出 line-box 顶端到 ink 顶端的偏移、ink 实际高度，对选中框做内缩修正
+  // 其他类型图层（image / background）仍用 PSD bounds。
   const stageOuterRef = useRef<HTMLDivElement>(null);
   const layerNodeRefs = useRef<Map<string, HTMLElement>>(new Map());
   const setLayerNodeRef = useCallback(
@@ -176,6 +180,7 @@ export function CanvasStage({
     },
     [],
   );
+  const measureCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [measuredTextRect, setMeasuredTextRect] = useState<{
     left: number;
     top: number;
@@ -193,22 +198,75 @@ export function CanvasStage({
       setMeasuredTextRect(null);
       return;
     }
+    if (!measureCanvasRef.current) {
+      measureCanvasRef.current = document.createElement("canvas");
+    }
     const measure = () => {
       const nr = node.getBoundingClientRect();
       const or = outer.getBoundingClientRect();
-      setMeasuredTextRect({
-        left: nr.left - or.left,
-        top: nr.top - or.top,
-        width: nr.width,
-        height: nr.height,
-      });
+      // 默认值：fallback 用 DOM rect（line-box）
+      const left = nr.left - or.left;
+      let top = nr.top - or.top;
+      const width = nr.width;
+      let height = nr.height;
+
+      // canvas measureText 修正为 ink-box
+      const cs = getComputedStyle(node);
+      const fs = parseFloat(cs.fontSize);
+      const lhPx = parseFloat(cs.lineHeight);
+      const text = (node.textContent ?? "").replace(/\n/g, "");
+      const ctx = measureCanvasRef.current?.getContext("2d");
+      if (
+        ctx &&
+        Number.isFinite(fs) &&
+        Number.isFinite(lhPx) &&
+        text.length > 0
+      ) {
+        ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${fs}px ${cs.fontFamily}`;
+        ctx.textBaseline = "alphabetic";
+        const m = ctx.measureText(text);
+        // fontBoundingBoxAscent/Descent: 字体声明的 em 顶/底，决定 baseline 位置
+        // actualBoundingBoxAscent/Descent: 当前字符串的实际可见笔画上/下边界
+        const fbA = m.fontBoundingBoxAscent;
+        const fbD = m.fontBoundingBoxDescent;
+        const abA = m.actualBoundingBoxAscent;
+        const abD = m.actualBoundingBoxDescent;
+        if (
+          Number.isFinite(fbA) &&
+          Number.isFinite(fbD) &&
+          Number.isFinite(abA) &&
+          Number.isFinite(abD)
+        ) {
+          // baseline 在 line-box 内的位置（从顶端起）
+          //   half-leading + fontAscent，half-leading = (lh - fbA - fbD) / 2
+          // ink 顶 = baseline - abA
+          // 推出：inkTopOffset = (lh + fbA - fbD)/2 - abA
+          const inkTopOffset = (lhPx + fbA - fbD) / 2 - abA;
+          const inkHeight = abA + abD;
+          // node 内可能多行；line-box 总高 = N × lhPx，ink 上下各裁掉一组半 leading
+          const trimVertical = (lhPx - inkHeight) * scale;
+          top += inkTopOffset * scale;
+          height -= trimVertical;
+          // 横向：用 measureText 的 actualBoundingBoxLeft/Right 收紧（中文通常 ≈ DOM 宽）
+          const abL = m.actualBoundingBoxLeft;
+          const abR = m.actualBoundingBoxRight;
+          if (Number.isFinite(abL) && Number.isFinite(abR)) {
+            // 仅当 ink 横向显著小于 DOM 宽时才收（避免误裁，留 1px 容差）
+            const inkWidth = abL + abR;
+            if (inkWidth * scale + 1 < width) {
+              // DOM 宽是 line-box 宽（含字距末尾留白），ink 宽是首字到末字的实际范围
+              // 不强制收紧 left/width 以免和文字间距/末尾空格视觉冲突，留 DOM 宽
+            }
+          }
+        }
+      }
+      setMeasuredTextRect({ left, top, width, height });
     };
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(node);
     ro.observe(outer);
     return () => ro.disconnect();
-    // editState dep 触发字体/字号/文本变更后的重新测量；scale 触发缩放后重新测量
   }, [selectedLayer, scale, editState]);
 
   // 画布内原地编辑文字：editingId 为当前处于编辑态的 layerId；draftText 为未提交的输入
