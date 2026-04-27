@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getDb } from "@/lib/db";
 import { parsePsdBuffer } from "@/lib/psd-parser";
 import { localPut } from "@/lib/local-storage";
+import { resolvePsName } from "@/lib/font-resolver";
 
 const MAX_SIZE = 200 * 1024 * 1024; // 200 MB
 
@@ -98,6 +99,24 @@ export async function POST(req: NextRequest) {
       const parentId =
         typeof layer.parentIndex === "number" ? layerIds[layer.parentIndex] ?? null : null;
 
+      // PSD 文字层把 PostScript 名（含 --GB1-0 等编码后缀）原样存进 fontFamily，
+      // 这里走 resolver 归一成聚合 family + 标准 CSS weight，落库即干净，
+      // 前端下拉 / 画布渲染 / 服务端导出共用同一份真理源。
+      let resolvedFamily: string | null = layer.text?.fontFamily ?? null;
+      let resolvedWeight: string | null = layer.text?.fontWeight ?? null;
+      if (layer.type === "text" && layer.text?.fontFamily) {
+        const r = await resolvePsName(
+          layer.text.fontFamily,
+          layer.text.fontWeight,
+        );
+        resolvedFamily = r.family || layer.text.fontFamily;
+        // 只有 PS 名命中扫描表（exact / stripped / prefix）时才用 resolver weight，
+        // 否则保留 PSD 原值（fauxBold → "bold" 等）。
+        if (r.source !== "raw-fallback" && r.source !== "family-fallback") {
+          resolvedWeight = r.weight;
+        }
+      }
+
       layerRecords.push({
         id: layerId,
         name: layer.name,
@@ -112,10 +131,10 @@ export async function POST(req: NextRequest) {
         rotation: layer.rotation,
         imageUrl,
         textContent: layer.text?.content ?? null,
-        fontFamily: layer.text?.fontFamily ?? null,
+        fontFamily: resolvedFamily,
         fontSize: layer.text?.fontSize ?? null,
         fontColor: layer.text?.color ?? null,
-        fontWeight: layer.text?.fontWeight ?? null,
+        fontWeight: resolvedWeight,
         fontStyle: layer.text?.fontStyle ?? null,
         textAlign: layer.text?.textAlign ?? null,
         lineHeight: layer.text?.lineHeight ?? null,

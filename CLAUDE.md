@@ -75,7 +75,7 @@ IMPORTANT: 修改 Next.js 相关代码前，先读 `node_modules/next/dist/docs/
 
 ## 项目特定坑位
 
-IMPORTANT: **PSD 字体注册双向映射** — 字体文件放 `public/fonts/`，`app/api/export/psd/route.ts` 用 fontkit 自动扫描 PostScript 名注册；前端 `lib/fonts.ts` 的 `FONT_FAMILIES` 定义「family + weight → PS name」映射，服务端 `FAMILY_WEIGHT_TO_PS` map 把前端 family 名解析成 PS 名以命中注册表。PSD 里存的是 PS 名，前端下拉用自定义 family 名，改字体相关代码时两边必须同步。调试字体丢失先 `console.log(GlobalFonts.families)` 和 `GlobalFonts.has(name)` 确认注册表，不要盲猜。
+IMPORTANT: **PSD 字体名归一化（上传时一次性完成）** — PSD 上传 route 在落库前调 `lib/font-resolver.ts` 的 `resolvePsName`，把 PSD 里的 PostScript 名（含 `--GB1-0` 等 CMap 后缀）映射成 `font-aggregation.ts` 的聚合 family key + 标准 CSS weight，**DB 里存的就是干净的 family**，不再是原始 PS 名。前端下拉、画布渲染、服务端导出三端共用同一份真理源，无需运行时再做查表。新字体进流程：扔文件到 `public/fonts/` → POST `/api/admin/fonts/rescan`（或重启）→ 重新上传 PSD（如有需要）。存量数据失配可用 `POST /api/admin/migrate-fonts` 批量归一化（GET `?dryRun=1` 先看影响面）。调试字体丢失：先 dry-run 看 resolver 能否命中 PS 名，再看 fontkit 注册表 `GlobalFonts.has(name)`。
 
 IMPORTANT: **Canvas 长文本布局必须在元素自身裁剪** — 画布 `transform: scale()` + 宽 `position:absolute` 子孙的组合下，祖先 `overflow:hidden` / `contain:strict` 都可能失效。文字元素自身必须加 `maxWidth: cw - x` 和 `overflow: hidden`，不能只靠祖先裁剪。见 `components/editor/canvas-stage.tsx` 的 baseStyle。
 
