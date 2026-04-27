@@ -912,11 +912,26 @@ export function CanvasStage({
                   );
 
                   // 共享定位 + 文字样式：保证 textarea 编辑态和 div 展示态位置 / 字体 / 行高完全一致
+                  //
+                  // 多行展示态特殊处理（方案 B）：
+                  //   旧逻辑给多行设 `width: w + whiteSpace: pre-wrap`，CSS 会在
+                  //   width 不够时自动 wrap，而服务端是按行直绘 + 画布按内容扩
+                  //   宽。两端对不齐，只要某行的实际像素宽 > 存储 W 就触发额外
+                  //   换行（典型 case：38礼遇/半价周末 在 530×752 弹窗里 W=352
+                  //   但 "半价周末" 测出 ~360，被多 wrap 一行）。
+                  //
+                  //   新逻辑：展示态用 white-space: pre（保留 \n 换行，不再按
+                  //   width 自动 wrap），width 不锁，元素自适应到内容宽度，
+                  //   minWidth 仍是 W 兜底，maxWidth 仍是画布剩余宽。这样跟
+                  //   服务端 canvasW = max(W, measuredMaxW) 行为完全一致。
+                  //
+                  //   编辑态保留旧的 width=W + pre-wrap，textarea 输入需要稳
+                  //   定盒子，不让 width 跟着输入跳变。
                   const baseStyle: React.CSSProperties = {
                     position: "absolute",
                     left: x,
                     top: (y as number) - inkTopOffset,
-                    width: isMultiLine || isEditing ? w : undefined,
+                    width: isEditing ? w : undefined,
                     minWidth: w,
                     opacity,
                     fontSize: fs,
@@ -927,7 +942,11 @@ export function CanvasStage({
                     lineHeight: safeLh,
                     letterSpacing: typeof ls === "number" ? `${ls}px` : undefined,
                     textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
-                    whiteSpace: isMultiLine || isEditing ? "pre-wrap" : "nowrap",
+                    whiteSpace: isEditing
+                      ? "pre-wrap"
+                      : isMultiLine
+                        ? "pre"
+                        : "nowrap",
                     zIndex: layer.zIndex,
                     transform: rot ? `rotate(${rot}deg)` : undefined,
                     transformOrigin: "left top",
