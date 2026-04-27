@@ -24,6 +24,7 @@ export interface LayerEditOverlay {
   fontColor?: string;
   fontFamily?: string;
   fontWeight?: string;
+  lineHeight?: number;
   imageUrl?: string;
   x?: number;
   y?: number;
@@ -145,6 +146,7 @@ function renderTextToPng(
   width: number,
   height: number,
   textAlign?: string,
+  lineHeight?: number,
 ): Buffer {
   const italic = fontStyle === "italic" ? "italic " : "";
   // family 解析优先级（从高到低）：
@@ -163,27 +165,47 @@ function renderTextToPng(
   const fontStr = `${italic}normal ${fontSize}px "${psName}", "FZLTHJW--GB1-0", "MEITUANTYPE-REGULAR", sans-serif`;
 
   const lines = text.split(/\r?\n/);
-  const lineH = fontSize * 1.3;
+  // PSD 的 lineHeight（leading）不一定有；脏数据 leading > fontSize × 2 当异常丢弃，回退默认 1.3 倍
+  const lineH =
+    lineHeight && lineHeight > fontSize && lineHeight <= fontSize * 2
+      ? lineHeight
+      : fontSize * 1.3;
 
   const measureCanvas = createCanvas(1, 1);
   const measureCtx = measureCanvas.getContext("2d");
   measureCtx.font = fontStr;
+  measureCtx.textBaseline = "alphabetic";
   let maxW = 0;
   for (const line of lines) {
     const w = measureCtx.measureText(line).width;
     if (w > maxW) maxW = w;
   }
 
-  const topPad = Math.ceil(fontSize * 0.2);
+  // ink-box 度量：用所有行拼成一段测一次，得到包含所有字符的 ink ascent / descent
+  const sampleText = lines.join("") || "M";
+  const m = measureCtx.measureText(sampleText);
+  const abA = Number.isFinite(m.actualBoundingBoxAscent)
+    ? m.actualBoundingBoxAscent
+    : fontSize * 0.8;
+  const abD = Number.isFinite(m.actualBoundingBoxDescent)
+    ? m.actualBoundingBoxDescent
+    : fontSize * 0.2;
+
+  // 跟客户端同款思路：让"ink 顶"对齐到合成位置（即 layer.y）。
+  // 实现：textBaseline="alphabetic"，第 1 行 baseline = abA → ink 顶在 y=0。
+  // 第 N 行 baseline = abA + (N−1) × lineH → 所有行的 ink 在 [0, (N−1)×lineH + abA + abD] 区间内。
   const canvasW = Math.max(width, Math.ceil(maxW) + 4);
-  const canvasH = Math.max(height, Math.ceil(lines.length * lineH) + topPad);
+  const canvasH = Math.max(
+    height,
+    Math.ceil((lines.length - 1) * lineH + abA + abD),
+  );
 
   const canvas = createCanvas(canvasW, canvasH);
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, canvasW, canvasH);
   ctx.fillStyle = fontColor;
   ctx.font = fontStr;
-  ctx.textBaseline = "top";
+  ctx.textBaseline = "alphabetic";
 
   let anchorX = 0;
   if (textAlign === "center") {
@@ -194,10 +216,10 @@ function renderTextToPng(
     anchorX = canvasW;
   }
 
-  let y = topPad;
+  let baselineY = abA;
   for (const line of lines) {
-    ctx.fillText(line, anchorX, y);
-    y += lineH;
+    ctx.fillText(line, anchorX, baselineY);
+    baselineY += lineH;
   }
 
   return Buffer.from(canvas.toBuffer("image/png"));
@@ -274,6 +296,7 @@ export async function renderPsdToPng(options: RenderPsdOptions): Promise<Buffer>
       const fontWeight = edit?.fontWeight ?? layer.fontWeight ?? "normal";
       const fontStyleVal = layer.fontStyle ?? "normal";
       const textAlignVal = layer.textAlign;
+      const lineHeightVal = edit?.lineHeight ?? layer.lineHeight ?? undefined;
 
       let textPng = renderTextToPng(
         text,
@@ -285,6 +308,7 @@ export async function renderPsdToPng(options: RenderPsdOptions): Promise<Buffer>
         layer.width,
         layer.height,
         textAlignVal,
+        lineHeightVal,
       );
 
       const rotation = layer.rotation ?? 0;

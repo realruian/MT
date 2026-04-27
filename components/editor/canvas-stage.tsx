@@ -6,6 +6,38 @@ import type { Template, PsdLayer } from "@/types/template";
 import { VENUE_CANVAS_ID, type Slot } from "./editor-shell";
 import { extractBlocks } from "./venue-blocks";
 
+// 渲染端共享的离屏 canvas，用于 measureText 算 ink-box 偏移；模块级单例避免
+// 每次组件挂载重建。仅 client 用。
+let sharedMeasureCanvas: HTMLCanvasElement | null = null;
+function measureInkTopOffset(
+  cssFontShorthand: string,
+  lineHeightPx: number,
+  text: string,
+): number {
+  if (typeof window === "undefined" || !text) return 0;
+  if (!sharedMeasureCanvas) {
+    sharedMeasureCanvas = document.createElement("canvas");
+  }
+  const ctx = sharedMeasureCanvas.getContext("2d");
+  if (!ctx) return 0;
+  ctx.font = cssFontShorthand;
+  ctx.textBaseline = "alphabetic";
+  const m = ctx.measureText(text);
+  const fbA = m.fontBoundingBoxAscent;
+  const fbD = m.fontBoundingBoxDescent;
+  const abA = m.actualBoundingBoxAscent;
+  if (
+    !Number.isFinite(fbA) ||
+    !Number.isFinite(fbD) ||
+    !Number.isFinite(abA)
+  ) {
+    return 0;
+  }
+  // 公式推导：line-box 顶 → half-leading + fontAscent → baseline → -abA → ink 顶
+  // 把 ink 顶对齐到 PSD layer.y 的方式 = 让 layer.y 减去这个 inkTopOffset
+  return (lineHeightPx + fbA - fbD) / 2 - abA;
+}
+
 /** venue block 拖拽中目标 block 的位置信息 */
 interface BlockTarget {
   blockKey: { kind: "originalGroup" | "instance"; id: string };
@@ -854,24 +886,44 @@ export function CanvasStage({
                   const lh = getVal(layer, "lineHeight");
                   // 防御异常 lineHeight：脏数据里 leading 可能远大于 fontSize，导致文字视觉下移。
                   // 超过 fontSize × 2 时视为异常，退回默认行高。
-                  const safeLh =
-                    lh && lh > fs && lh <= fs * 2 ? `${lh}px` : 1.3;
+                  const lhPx =
+                    lh && lh > fs && lh <= fs * 2 ? lh : fs * 1.3;
+                  const safeLh = `${lhPx}px`;
                   const ls = getVal(layer, "letterSpacing");
                   const isEditing = editingId === layer.id;
+
+                  // 字体相关变量统一拎出来，方便 measureText 用同一份
+                  const fontFamilyVal = getVal(layer, "fontFamily") ?? "sans-serif";
+                  const fontFamilyStr = `"${fontFamilyVal}", sans-serif`;
+                  const fontWeightVal = String(
+                    getVal(layer, "fontWeight") ?? "normal",
+                  );
+                  const fontStyleVal = String(
+                    getVal(layer, "fontStyle") ?? "normal",
+                  );
+
+                  // PSD 的 layer.y 是 ink 顶端，CSS line-box 把 layer.y 当 line-box 顶 →
+                  // glyph 实际渲染会向下偏 inkTopOffset。这里把 top 上移同样距离，让
+                  // ink 顶端正好落到 layer.y。
+                  const inkTopOffset = measureInkTopOffset(
+                    `${fontStyleVal} ${fontWeightVal} ${fs}px ${fontFamilyStr}`,
+                    lhPx,
+                    text || "M",
+                  );
 
                   // 共享定位 + 文字样式：保证 textarea 编辑态和 div 展示态位置 / 字体 / 行高完全一致
                   const baseStyle: React.CSSProperties = {
                     position: "absolute",
                     left: x,
-                    top: y,
+                    top: (y as number) - inkTopOffset,
                     width: isMultiLine || isEditing ? w : undefined,
                     minWidth: w,
                     opacity,
                     fontSize: fs,
-                    fontFamily: `"${getVal(layer, "fontFamily") ?? "sans-serif"}", sans-serif`,
+                    fontFamily: fontFamilyStr,
                     color: getVal(layer, "fontColor") ?? "#000",
-                    fontWeight: getVal(layer, "fontWeight") ?? "normal",
-                    fontStyle: (getVal(layer, "fontStyle") as React.CSSProperties["fontStyle"]) ?? "normal",
+                    fontWeight: fontWeightVal,
+                    fontStyle: fontStyleVal as React.CSSProperties["fontStyle"],
                     lineHeight: safeLh,
                     letterSpacing: typeof ls === "number" ? `${ls}px` : undefined,
                     textAlign: (getVal(layer, "textAlign") as React.CSSProperties["textAlign"]) ?? "left",
