@@ -2,9 +2,10 @@
 
 import { useRef, useState, type ReactNode } from "react";
 import Image from "next/image";
-import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp, ImageIcon, Loader2, Upload } from "lucide-react";
+import { AlignCenter, AlignJustify, AlignLeft, AlignRight, ChevronDown, ChevronUp, ImageIcon, Loader2, Sparkles, Upload } from "lucide-react";
 import type { PsdLayer, Template } from "@/types/template";
 import type { FontFamilyDef } from "@/lib/fonts";
+import { AiEditModal } from "./ai-edit-modal";
 
 interface PropertyPanelProps {
   template: Template;
@@ -904,6 +905,34 @@ function ImageField({
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [aiOpen, setAiOpen] = useState(false);
+
+  /** AI 修改返回新图后：跟"替换图片"同套逻辑（保持显示宽，按新图比例算高度） */
+  async function handleAiApplied(newUrl: string) {
+    try {
+      const nat = await new Promise<{ w: number; h: number }>(
+        (resolve, reject) => {
+          const img = new window.Image();
+          img.onload = () =>
+            resolve({ w: img.naturalWidth, h: img.naturalHeight });
+          img.onerror = reject;
+          img.src = newUrl;
+        },
+      );
+      const newH =
+        nat.w > 0 && effWidth > 0
+          ? Math.round(effWidth * (nat.h / nat.w))
+          : undefined;
+      onUpdate(
+        layer.id,
+        newH !== undefined ? { imageUrl: newUrl, height: newH } : { imageUrl: newUrl },
+      );
+    } catch (err) {
+      console.error("[ai-edit apply] failed:", err);
+      // 即使读不到尺寸也写 imageUrl（退化为不调高度）
+      onUpdate(layer.id, { imageUrl: newUrl });
+    }
+  }
 
   async function handleFile(file: File) {
     setUploading(true);
@@ -1004,6 +1033,28 @@ function ImageField({
           )}
         </span>
       </button>
+
+      {/* AI 修改入口：在缩略图下方，单独一行按钮 */}
+      <button
+        type="button"
+        disabled={uploading || !layer.imageUrl}
+        onClick={() => setAiOpen(true)}
+        className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md bg-[#11192D] px-3 py-2 text-[14px] font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        <Sparkles className="size-3.5" />
+        AI 修改
+      </button>
+
+      {/* AI 修改弹窗：条件挂载，关弹窗即卸载 → 状态自动 reset */}
+      {aiOpen && (
+        <AiEditModal
+          originalImageUrl={
+            (eff(layer, "imageUrl") as string | undefined) ?? layer.imageUrl ?? ""
+          }
+          onClose={() => setAiOpen(false)}
+          onApply={handleAiApplied}
+        />
+      )}
     </>
   );
 }
