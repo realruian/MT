@@ -48,7 +48,7 @@ function normalizeWeight(w: string | undefined): string {
 
 /** 输入框通用样式 */
 const inputCls =
-  "h-8 rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-2 text-[12px] text-[#11192D] outline-none focus:border-[#bbb]";
+  "h-8 rounded-md border border-grey-border bg-grey-50 px-2 text-[12px] text-grey-primary outline-none focus:border-[#bbb]";
 export function PropertyPanel({
   template,
   layers,
@@ -90,6 +90,31 @@ export function PropertyPanel({
     onUpdate(layer.id, { [key]: v } as Partial<PsdLayer>);
   };
 
+  /** 图片图层 W/H 等比联动：以当前 W:H 为锚定比例，改一边自动按比例同步另一边。 */
+  const setImageSize = (
+    layer: PsdLayer,
+    anchor: "width" | "height",
+    raw: string,
+  ) => {
+    if (raw === "") return;
+    const next = Number(raw);
+    if (!Number.isFinite(next) || next < 1) return;
+    const w = eff(layer, "width") as number;
+    const h = eff(layer, "height") as number;
+    if (w <= 0 || h <= 0) return;
+    if (anchor === "width") {
+      onUpdate(layer.id, {
+        width: next,
+        height: Math.max(1, Math.round(next * (h / w))),
+      });
+    } else {
+      onUpdate(layer.id, {
+        height: next,
+        width: Math.max(1, Math.round(next * (w / h))),
+      });
+    }
+  };
+
   /** 模块级 X/Y 修改：delta 批量应用到模块自身 + 所有子层（视觉上整体平移） */
   const setModulePos = (group: PsdLayer, key: "x" | "y", raw: string) => {
     if (raw === "") return;
@@ -116,7 +141,7 @@ export function PropertyPanel({
       {/* 状态 1：什么都没选中 → 显示画布尺寸 + (venue 下) 画布背景色编辑 */}
       {!selectedLayer && !selectedGroup && (
         <section>
-          <h3 className="mb-3 text-[12px] text-[#11192D]">画布尺寸</h3>
+          <h3 className="mb-3 text-[12px] text-grey-primary">画布尺寸</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox label="W">
               <FieldValue>{canvasW}</FieldValue>
@@ -127,7 +152,7 @@ export function PropertyPanel({
           </div>
           {isVenue && (
             <>
-              <h3 className="mt-5 mb-3 text-[12px] text-[#11192D]">画布背景</h3>
+              <h3 className="mt-5 mb-3 text-[12px] text-grey-primary">画布背景</h3>
               <CanvasBgColorRow
                 value={canvasBgColor}
                 onChange={onCanvasBgColorChange}
@@ -140,7 +165,7 @@ export function PropertyPanel({
       {/* 仅一级选中模块：选中模块 X/Y 可编辑，W/H readonly；delta 同步应用到子图层 */}
       {!selectedLayer && selectedGroup && (
         <section>
-          <h3 className="mb-3 text-[12px] text-[#11192D]">选中模块</h3>
+          <h3 className="mb-3 text-[12px] text-grey-primary">选中模块</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox
               label="X"
@@ -215,7 +240,7 @@ export function PropertyPanel({
               disabled
               title="即将支持"
               onClick={() => onReplaceModule(selectedGroup.id)}
-              className="flex-1 cursor-not-allowed rounded-md border border-[#e5e5e5] bg-[#f5f5f5] px-3 py-2 text-[12px] text-[#bbb]"
+              className="flex-1 cursor-not-allowed rounded-md border border-grey-border bg-grey-50 px-3 py-2 text-[12px] text-grey-disabled"
             >
               替换
             </button>
@@ -233,7 +258,7 @@ export function PropertyPanel({
       {/* 状态 2 / 3：选中元素 → 公共的 X/Y/W/H 网格 */}
       {selectedLayer && (
         <section>
-          <h3 className="mb-3 text-[12px] text-[#11192D]">选中元素</h3>
+          <h3 className="mb-3 text-[12px] text-grey-primary">选中元素</h3>
           <div className="grid grid-cols-2 gap-2">
             <FieldBox
               label="X"
@@ -291,16 +316,79 @@ export function PropertyPanel({
                 className={fieldInputCls}
               />
             </FieldBox>
-            <FieldBox label="W">
-              <FieldValue>
-                {Math.round(eff(selectedLayer, "width") as number)}
-              </FieldValue>
-            </FieldBox>
-            <FieldBox label="H">
-              <FieldValue>
-                {Math.round(eff(selectedLayer, "height") as number)}
-              </FieldValue>
-            </FieldBox>
+            {isImage ? (
+              <>
+                <FieldBox
+                  label="W"
+                  trailing={
+                    <FieldSpinner
+                      onUp={() =>
+                        setImageSize(
+                          selectedLayer,
+                          "width",
+                          String(Math.round(eff(selectedLayer, "width") as number) + 1),
+                        )
+                      }
+                      onDown={() =>
+                        setImageSize(
+                          selectedLayer,
+                          "width",
+                          String(Math.round(eff(selectedLayer, "width") as number) - 1),
+                        )
+                      }
+                    />
+                  }
+                >
+                  <input
+                    type="number"
+                    value={Math.round(eff(selectedLayer, "width") as number)}
+                    onChange={(e) => setImageSize(selectedLayer, "width", e.target.value)}
+                    className={fieldInputCls}
+                  />
+                </FieldBox>
+                <FieldBox
+                  label="H"
+                  trailing={
+                    <FieldSpinner
+                      onUp={() =>
+                        setImageSize(
+                          selectedLayer,
+                          "height",
+                          String(Math.round(eff(selectedLayer, "height") as number) + 1),
+                        )
+                      }
+                      onDown={() =>
+                        setImageSize(
+                          selectedLayer,
+                          "height",
+                          String(Math.round(eff(selectedLayer, "height") as number) - 1),
+                        )
+                      }
+                    />
+                  }
+                >
+                  <input
+                    type="number"
+                    value={Math.round(eff(selectedLayer, "height") as number)}
+                    onChange={(e) => setImageSize(selectedLayer, "height", e.target.value)}
+                    className={fieldInputCls}
+                  />
+                </FieldBox>
+              </>
+            ) : (
+              <>
+                <FieldBox label="W">
+                  <FieldValue>
+                    {Math.round(eff(selectedLayer, "width") as number)}
+                  </FieldValue>
+                </FieldBox>
+                <FieldBox label="H">
+                  <FieldValue>
+                    {Math.round(eff(selectedLayer, "height") as number)}
+                  </FieldValue>
+                </FieldBox>
+              </>
+            )}
           </div>
         </section>
       )}
@@ -309,7 +397,7 @@ export function PropertyPanel({
       {selectedLayer && isText && (
         <>
           <section>
-            <h3 className="mb-3 text-[12px] text-[#11192D]">文字</h3>
+            <h3 className="mb-3 text-[12px] text-grey-primary">文字</h3>
             <TextFields
               layer={selectedLayer}
               eff={eff}
@@ -319,7 +407,7 @@ export function PropertyPanel({
             />
           </section>
           <section>
-            <h3 className="mb-3 text-[12px] text-[#11192D]">填充颜色</h3>
+            <h3 className="mb-3 text-[12px] text-grey-primary">填充颜色</h3>
             <FillColorField
               layer={selectedLayer}
               eff={eff}
@@ -333,7 +421,7 @@ export function PropertyPanel({
       {/* 状态 3：图片元素专属 —— 替换图片 */}
       {selectedLayer && isImage && (
         <section>
-          <h3 className="mb-3 text-[12px] text-[#11192D]">图片</h3>
+          <h3 className="mb-3 text-[12px] text-grey-primary">图片</h3>
           <ImageField
             layer={selectedLayer}
             eff={eff}
@@ -346,7 +434,7 @@ export function PropertyPanel({
       {/* 图片元素：单独的不透明度（文字元素的不透明度已合并进填充颜色） */}
       {selectedLayer && isImage && (
         <section>
-          <h3 className="mb-3 text-[12px] text-[#11192D]">不透明度</h3>
+          <h3 className="mb-3 text-[12px] text-grey-primary">不透明度</h3>
           <OpacityField layer={selectedLayer} eff={eff} setNum={setNum} />
         </section>
       )}
@@ -377,7 +465,7 @@ function FieldBox({
   return (
     <div
       className={[
-        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-[#eaecf0] pr-3",
+        "flex h-8 min-w-0 items-center gap-2 rounded-[8px] bg-grey-100 pr-3",
         iconPrefix ? "pl-2" : "pl-3",
         fullWidth ? "col-span-2" : "",
       ]
@@ -385,13 +473,13 @@ function FieldBox({
         .join(" ")}
     >
       {label != null && (
-        <span className="flex shrink-0 items-center text-[12px] text-[#7c889c]">
+        <span className="flex shrink-0 items-center text-[12px] text-grey-tertiary">
           {label}
         </span>
       )}
       {children}
       {trailing != null && (
-        <span className="flex shrink-0 items-center text-[#7c889c]">
+        <span className="flex shrink-0 items-center text-grey-tertiary">
           {trailing}
         </span>
       )}
@@ -402,7 +490,7 @@ function FieldBox({
 /** 胶囊内 readonly 数值展示 */
 function FieldValue({ children }: { children: ReactNode }) {
   return (
-    <span className="min-w-0 flex-1 truncate text-[12px] text-[#11192D]">
+    <span className="min-w-0 flex-1 truncate text-[12px] text-grey-primary">
       {children}
     </span>
   );
@@ -410,12 +498,12 @@ function FieldValue({ children }: { children: ReactNode }) {
 
 /** 胶囊内 number input（隐藏 spinner 箭头 + 透明底） */
 const fieldInputCls =
-  "min-w-0 flex-1 bg-transparent text-[12px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  "min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 /** 胶囊内 select（appearance-none 去掉浏览器原生箭头 + 透明底 + pointer-events-none：
  *  只允许点击右侧 chevron 按钮触发下拉，禁用在文字上直接点开，保留键盘 tab/space 访问） */
 const fieldSelectCls =
-  "min-w-0 flex-1 pointer-events-none appearance-none bg-transparent text-[12px] text-[#11192D] outline-none";
+  "min-w-0 flex-1 pointer-events-none appearance-none bg-transparent text-[12px] text-grey-primary outline-none";
 
 /** 胶囊内下拉选择字段：chevron 是唯一的鼠标触发点。
  *  用 showPicker() 打开原生下拉，Chrome 99+/Firefox 106+/Safari 17.4+ 支持。 */
@@ -442,7 +530,7 @@ function SelectFieldBox({
           type="button"
           aria-label="打开选项"
           onClick={() => ref.current?.showPicker?.()}
-          className="flex shrink-0 items-center text-[#7c889c] transition-colors hover:text-[#11192D]"
+          className="flex shrink-0 items-center text-grey-tertiary transition-colors hover:text-grey-primary"
         >
           <ChevronDown className="size-4" />
         </button>
@@ -473,12 +561,12 @@ function FieldSpinner({
   onDown: () => void;
 }) {
   return (
-    <div className="flex h-full flex-col items-center justify-center text-[#7c889c]">
+    <div className="flex h-full flex-col items-center justify-center text-grey-tertiary">
       <button
         type="button"
         aria-label="增加"
         onClick={onUp}
-        className="flex h-[10px] items-center transition-colors hover:text-[#11192D]"
+        className="flex h-[10px] items-center transition-colors hover:text-grey-primary"
       >
         <ChevronUp className="size-3" strokeWidth={2.5} />
       </button>
@@ -486,7 +574,7 @@ function FieldSpinner({
         type="button"
         aria-label="减少"
         onClick={onDown}
-        className="-mt-0.5 flex h-[10px] items-center transition-colors hover:text-[#11192D]"
+        className="-mt-0.5 flex h-[10px] items-center transition-colors hover:text-grey-primary"
       >
         <ChevronDown className="size-3" strokeWidth={2.5} />
       </button>
@@ -706,8 +794,8 @@ function CanvasBgColorRow({
   const displayHex = safe.slice(1).toUpperCase();
 
   return (
-    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] pl-1 pr-3">
-      <label className="relative flex size-[24px] shrink-0 cursor-pointer overflow-hidden rounded-[6px] border border-[#E5E7EB]">
+    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-grey-100 pl-1 pr-3">
+      <label className="relative flex size-[24px] shrink-0 cursor-pointer overflow-hidden rounded-[6px] border border-grey-border">
         <span
           className="absolute inset-0"
           style={{ backgroundColor: safe }}
@@ -727,7 +815,7 @@ function CanvasBgColorRow({
           const raw = e.target.value.trim().replace(/^#/, "");
           onChange(raw ? `#${raw}` : "#ffffff");
         }}
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-[#11192D] outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none"
       />
     </div>
   );
@@ -756,7 +844,7 @@ function FillColorField({
   const percent = typeof opacity === "number" ? Math.round(opacity * 100) : 100;
 
   return (
-    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-[#eaecf0] pl-2 pr-3">
+    <div className="flex h-8 items-center gap-2 rounded-[8px] bg-grey-100 pl-2 pr-3">
       {/* 色块：叠一个透明 input[type=color] 覆盖，实现点击弹原生颜色选择器 */}
       <label className="relative flex size-4 shrink-0 cursor-pointer overflow-hidden rounded border border-white/80">
         <span
@@ -780,7 +868,7 @@ function FillColorField({
           const raw = e.target.value.trim().replace(/^#/, "");
           setStr(layer, "fontColor", raw ? `#${raw}` : "#000000");
         }}
-        className="min-w-0 flex-1 bg-transparent text-[12px] text-[#11192D] outline-none"
+        className="min-w-0 flex-1 bg-transparent text-[12px] text-grey-primary outline-none"
       />
 
       {/* 竖向分隔线 */}
@@ -795,9 +883,9 @@ function FillColorField({
         onChange={(e) =>
           setNum(layer, "opacity", String(Number(e.target.value) / 100))
         }
-        className="w-8 min-w-0 bg-transparent text-right text-[12px] text-[#11192D] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        className="w-8 min-w-0 bg-transparent text-right text-[12px] text-grey-primary outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
       />
-      <span className="shrink-0 text-[12px] text-[#11192D]">%</span>
+      <span className="shrink-0 text-[12px] text-grey-primary">%</span>
     </div>
   );
 }
@@ -878,7 +966,7 @@ function ImageField({
         type="button"
         disabled={uploading}
         onClick={() => inputRef.current?.click()}
-        className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md bg-[#f5f6f8] outline-none disabled:cursor-not-allowed"
+        className="group relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-md bg-grey-50 outline-none disabled:cursor-not-allowed"
         aria-label="替换图片"
       >
         {/* 缩略图本体 */}
@@ -891,7 +979,7 @@ function ImageField({
             draggable={false}
           />
         ) : (
-          <ImageIcon className="size-5 text-[#bbb]" />
+          <ImageIcon className="size-5 text-grey-disabled" />
         )}
 
         {/* hover overlay：替换图片提示 */}
@@ -942,7 +1030,7 @@ function OpacityField({
         onChange={(e) =>
           setNum(layer, "opacity", String(Number(e.target.value) / 100))
         }
-        className="flex-1 accent-[#3b82f6]"
+        className="flex-1 accent-[#11192D]"
       />
       <input
         type="number"
@@ -972,7 +1060,7 @@ function AlignButtons({
     { id: "justify", icon: AlignJustify, label: "两端对齐" },
   ];
   return (
-    <div className="col-span-2 flex h-8 items-center rounded-[8px] bg-[#eaecf0] p-1">
+    <div className="col-span-2 flex h-8 items-center rounded-[8px] bg-grey-100 p-1">
       {options.map(({ id, icon: Icon, label }) => {
         const active = value === id;
         return (
@@ -984,7 +1072,7 @@ function AlignButtons({
             onClick={() => onChange(id)}
             className={[
               "flex h-6 flex-1 items-center justify-center rounded-[6px] transition-colors",
-              active ? "bg-white text-[#11192D]" : "text-[#7c889c] hover:text-[#11192D]",
+              active ? "bg-white text-grey-primary" : "text-grey-tertiary hover:text-grey-primary",
             ].join(" ")}
           >
             <Icon className="size-4" />
