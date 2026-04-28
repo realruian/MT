@@ -40,7 +40,7 @@ const MAX_HISTORY = 10;
 const MAX_NEW_TEXT = 100;
 const MAX_IMAGE_PROMPT = 200;
 const PREVIEW_MAX_W = 832;
-const PREVIEW_MAX_H = 480;
+const PREVIEW_MAX_H = 320; // 配合 h-[616px] 固定弹窗高度
 const MIN_REGION_PCT = 3;
 const REGION_HISTORY_CAP = 30;
 
@@ -419,7 +419,7 @@ export function AiEditModal({
       onClick={() => !loading && onClose()}
     >
       <div
-        className="modal-card-enter flex max-h-[92vh] w-[880px] flex-col overflow-hidden rounded-[12px] bg-white shadow-xl"
+        className="modal-card-enter flex h-[616px] w-[880px] flex-col overflow-hidden rounded-[12px] bg-white shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 标题栏 */}
@@ -430,14 +430,14 @@ export function AiEditModal({
             aria-label="关闭"
             onClick={onClose}
             disabled={loading}
-            className="flex size-8 items-center justify-center rounded-lg text-grey-secondary transition-colors hover:bg-grey-50 hover:text-grey-primary disabled:opacity-30"
+            className="flex size-8 items-center justify-center text-grey-tertiary transition-colors hover:text-grey-primary disabled:opacity-30"
           >
             <X className="size-5" />
           </button>
         </div>
 
-        {/* Tab：改图 / 改字 */}
-        <div className="flex shrink-0 gap-1 border-b border-grey-border px-6">
+        {/* Tab：改图 / 改字（-ml-3 抵消 tab 内 px-3，使首个 tab 文字与标题左对齐） */}
+        <div className="-ml-3 flex shrink-0 gap-1 px-6">
           {(["image", "text"] as Mode[]).map((m) => (
             <button
               key={m}
@@ -460,8 +460,8 @@ export function AiEditModal({
           ))}
         </div>
 
-        {/* 滚动内容区：仅预览 + 历史 */}
-        <div className="flex flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+        {/* 内容区：仅预览，不滚动；空间不够时预览自动缩小 */}
+        <div className="flex flex-1 flex-col gap-2 overflow-hidden px-6 py-3">
           {/* 预览区 */}
           <div className="flex justify-center">
             <div
@@ -549,72 +549,17 @@ export function AiEditModal({
                 </div>
               )}
 
+              {/* Loading 蒙版：仅盖预览图，对齐一键拓展弹窗的黑底白字横向风格 */}
               {loading && (
-                <div className="absolute inset-0 flex items-center justify-center bg-white/70">
-                  <div className="flex flex-col items-center gap-2 text-grey-primary">
-                    <Loader2 className="size-6 animate-spin" />
-                    <span className="text-[14px]">AI 生成中…（最多 3 分钟）</span>
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                  <div className="flex items-center gap-2 text-[16px] text-white">
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>AI 重绘中，请稍后…</span>
                   </div>
                 </div>
               )}
             </div>
           </div>
-
-          {/* 历史版本 */}
-          {history.length > 0 && (
-            <div>
-              <div className="mb-2 text-[14px] text-grey-tertiary">
-                历史版本（最多保留 {MAX_HISTORY} 个，关闭弹窗后清空）
-              </div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                <button
-                  type="button"
-                  onClick={() => setSelectedHistoryIdx(null)}
-                  className={[
-                    "relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border-2 transition-colors",
-                    selectedHistoryIdx === null
-                      ? "border-[#11192D]"
-                      : "border-transparent hover:border-grey-200",
-                  ].join(" ")}
-                  title="原图"
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={originalImageUrl}
-                    alt="原图"
-                    className="h-full w-full object-cover"
-                  />
-                  <span className="absolute bottom-0 left-0 right-0 bg-black/55 py-0.5 text-center text-[10px] text-white">
-                    原图
-                  </span>
-                </button>
-                {history.map((h, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    onClick={() => setSelectedHistoryIdx(i)}
-                    className={[
-                      "relative flex size-16 shrink-0 items-center justify-center overflow-hidden rounded-[6px] border-2 transition-colors",
-                      selectedHistoryIdx === i
-                        ? "border-[#11192D]"
-                        : "border-transparent hover:border-grey-200",
-                    ].join(" ")}
-                    title={h.label}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={h.url}
-                      alt={`版本 ${i + 1}`}
-                      className="h-full w-full object-cover"
-                    />
-                    <span className="absolute bottom-0 left-0 right-0 bg-black/55 py-0.5 text-center text-[10px] text-white">
-                      v{i + 1}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {error && (
             <div
@@ -626,8 +571,8 @@ export function AiEditModal({
           )}
         </div>
 
-        {/* 输入条：常驻底部，不随滚动 */}
-        <div className="shrink-0 border-t border-grey-border px-6 pt-4">
+        {/* 输入条：常驻底部，左右 padding 与其他行一致 */}
+        <div className="shrink-0 px-6 pt-2">
           <input
             type="text"
             value={inputConfig.value}
@@ -639,27 +584,41 @@ export function AiEditModal({
           />
         </div>
 
-        {/* 底部按钮 */}
-        <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-4">
+        {/* 底部按钮：主次按钮按生成状态调换。padding 对齐一键拓展弹窗（pt-10 pb-6） */}
+        <div className="flex shrink-0 items-center justify-end gap-2 px-6 pb-6 pt-10">
           <button
             type="button"
             onClick={handleGenerate}
             disabled={generateDisabled}
-            className="flex h-8 items-center gap-1 rounded-lg bg-[#11192D] px-3 text-[16px] font-medium text-white transition-colors hover:bg-[#000] disabled:cursor-not-allowed disabled:opacity-40"
+            className={[
+              // min-w-[80px] 锁死宽度，"生成"/"重新生成"/loading spinner 三态统一
+              "flex h-8 min-w-[80px] items-center justify-center rounded-[8px] px-3 text-[14px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+              history.length === 0
+                ? "bg-[#11192D] text-white hover:bg-[#000]"
+                : "bg-[#F7F8FA] text-[#7C889C] hover:bg-grey-100",
+            ].join(" ")}
           >
-            {loading && <Loader2 className="size-4 animate-spin" />}
-            {loading ? "生成中" : "生成"}
+            {loading ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : history.length === 0 ? (
+              "生成"
+            ) : (
+              "重新生成"
+            )}
           </button>
-          <button
-            type="button"
-            onClick={handleApply}
-            disabled={loading || selectedHistoryIdx === null}
-            className="h-8 rounded-lg bg-[#11192D] px-3 text-[16px] font-medium text-white transition-colors hover:bg-[#000] disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            应用
-          </button>
+          {history.length > 0 && (
+            <button
+              type="button"
+              onClick={handleApply}
+              disabled={loading || selectedHistoryIdx === null}
+              className="h-8 rounded-[8px] bg-[#11192D] px-3 text-[14px] font-medium text-white transition-colors hover:bg-[#000] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              应用
+            </button>
+          )}
         </div>
       </div>
+
     </div>
   );
 }
