@@ -7,6 +7,7 @@ export const BLOB_MEDIA_PREFIXES = [
   "psd-originals/",
   "psd-layers/",
   "venue-components/",
+  "ai-edits/",
 ] as const;
 
 export function isAllowedBlobPathname(pathname: string): boolean {
