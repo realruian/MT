@@ -2,6 +2,12 @@ import Link from "next/link";
 import type { Template } from "@/types/template";
 
 export function TemplateCard({ template }: { template: Template }) {
+  // 演示用伪模板：id 以 demo_ 开头，"在线编辑"按钮渲染成 button 不跳转，
+  // 视觉与真模板完全一致。该分支切回 main 后 demo_ 永远不会出现，逻辑死代码自动消失
+  const isDemo = template.id.startsWith("demo_");
+  const editButtonClass =
+    "flex h-[28px] w-full items-center justify-center rounded-[6px] bg-[#ff6813] text-[14px] font-medium text-white transition-colors duration-150 hover:bg-[#e85d0f]";
+
   return (
     <div className="break-inside-avoid">
       <div className="group relative block w-full break-inside-avoid overflow-hidden rounded-[8px]">
@@ -20,12 +26,18 @@ export function TemplateCard({ template }: { template: Template }) {
           <span className="text-center text-[10px] leading-none text-white">
             {template.name}
           </span>
-          <Link
-            href={`/editor/${template.id}?activity=${encodeURIComponent(template.name)}`}
-            className="flex h-[28px] w-full items-center justify-center rounded-[6px] bg-[#ff6813] text-[14px] font-medium text-white transition-colors duration-150 hover:bg-[#e85d0f]"
-          >
-            在线编辑
-          </Link>
+          {isDemo ? (
+            <button type="button" className={editButtonClass}>
+              在线编辑
+            </button>
+          ) : (
+            <Link
+              href={`/editor/${template.id}?activity=${encodeURIComponent(template.name)}`}
+              className={editButtonClass}
+            >
+              在线编辑
+            </Link>
+          )}
         </div>
       </div>
     </div>
