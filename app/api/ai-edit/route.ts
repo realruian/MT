@@ -1,9 +1,11 @@
 import { NextRequest } from "next/server";
 import { editImage, FridayError } from "@/lib/friday-client";
 import { localPut } from "@/lib/local-storage";
+import { fetchAsBase64, extFromMime } from "@/lib/server-image-fetch";
+import { hasTransparency, removeBg } from "@/lib/remove-bg";
 
 /**
- * AI 图像编辑入口。
+ * AI 图像编辑入口（整图模式）。
  *
  * 流程：
  *   1. 接收前端的 `imageUrl`（layer 当前 imageUrl，可能是 /api/blob/media/... 或外链）
@@ -23,42 +25,6 @@ export const maxDuration = 360;
 interface AiEditRequest {
   imageUrl: string;
   prompt: string;
-}
-
-function inferMimeFromUrl(url: string): string {
-  const lower = url.toLowerCase().split("?")[0];
-  if (lower.endsWith(".png")) return "image/png";
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
-  if (lower.endsWith(".webp")) return "image/webp";
-  return "image/jpeg";
-}
-
-function extFromMime(mime: string): string {
-  if (mime === "image/png") return "png";
-  if (mime === "image/webp") return "webp";
-  return "jpg";
-}
-
-/** 把外链 / 站内 URL 拉成 buffer。同站点 URL（/api/blob/...）支持相对路径解析。 */
-async function fetchImage(
-  imageUrl: string,
-  origin: string,
-): Promise<{ buf: Buffer; mime: string }> {
-  // 相对路径补 origin
-  const absoluteUrl = imageUrl.startsWith("http")
-    ? imageUrl
-    : `${origin}${imageUrl}`;
-  const resp = await fetch(absoluteUrl, {
-    method: "GET",
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!resp.ok) {
-    throw new Error(`拉取原图失败：${resp.status} ${absoluteUrl}`);
-  }
-  const buf = Buffer.from(await resp.arrayBuffer());
-  const mime =
-    resp.headers.get("content-type")?.split(";")[0] ?? inferMimeFromUrl(imageUrl);
-  return { buf, mime };
 }
 
 export async function POST(req: NextRequest) {
@@ -86,33 +52,51 @@ export async function POST(req: NextRequest) {
   const origin = req.nextUrl.origin;
 
   try {
-    // 1. 拉原图
-    const { buf: srcBuf, mime: srcMime } = await fetchImage(imageUrl, origin);
-    const srcBase64 = srcBuf.toString("base64");
+    const {
+      buf: srcBuf,
+      base64: srcBase64,
+      mime: srcMime,
+    } = await fetchAsBase64(imageUrl, origin);
+    const srcHasAlpha = await hasTransparency(srcBuf);
 
-    // 2. 调 Friday
     const result = await editImage({
       imageBase64: srcBase64,
       mimeType: srcMime,
       prompt: prompt.trim(),
     });
 
-    // 3. 转存到自有 blob
-    const ext = extFromMime(result.mimeType);
+    let outBuf = Buffer.from(result.imageBase64, "base64");
+    let outMime = result.mimeType;
+    if (srcHasAlpha) {
+      try {
+        const t0 = Date.now();
+        outBuf = await removeBg(outBuf, result.mimeType);
+        outMime = "image/png";
+        console.log(
+          `[ai-edit] removeBg ok in ${Date.now() - t0}ms, size=${outBuf.length}B`,
+        );
+      } catch (e) {
+        console.warn(
+          `[ai-edit] removeBg failed, fallback to flat output: ${
+            e instanceof Error ? e.message : String(e)
+          }`,
+        );
+      }
+    }
+
+    const ext = extFromMime(outMime);
     const filename = `ai-edits/${Date.now().toString(36)}-${Math.random()
       .toString(36)
       .slice(2, 8)}.${ext}`;
-    const outBuf = Buffer.from(result.imageBase64, "base64");
     const stored = await localPut(filename, outBuf);
 
     return Response.json({
       ok: true,
       imageUrl: stored.url,
-      mimeType: result.mimeType,
+      mimeType: outMime,
     });
   } catch (e) {
     if (e instanceof FridayError) {
-      // 上游 AI 错误 → 502 Bad Gateway 更准确
       return Response.json(
         { error: `AI 服务错误：${e.message}` },
         { status: 502 },

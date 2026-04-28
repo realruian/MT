@@ -39,6 +39,29 @@ export interface FridayEditOptions {
   pollIntervalMs?: number;
 }
 
+export interface FridayMultipartImage {
+  /** base64（不带 data:URL 前缀） */
+  base64: string;
+  /** image/png / image/jpeg / image/webp */
+  mimeType: string;
+}
+
+export interface FridayMultipartOptions {
+  /** 编辑指令文字（合并后的 prompt） */
+  promptText: string;
+  /** 主图（被编辑的那张） */
+  mainImage: FridayMultipartImage;
+  /** 参考图（按顺序对应 prompt 中的"附图1"、"附图2"…） */
+  referenceImages?: FridayMultipartImage[];
+  submitTimeoutMs?: number;
+  pollTimeoutMs?: number;
+  pollIntervalMs?: number;
+}
+
+type GeminiPart =
+  | { text: string }
+  | { inline_data: { mime_type: string; data: string } };
+
 export interface FridayEditResult {
   /** 结果图 base64（不带 data:URL 前缀） */
   imageBase64: string;
@@ -71,26 +94,19 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * 提交图像编辑任务，返回 task_id。
+ * 底层：提交一组 Gemini parts，返回 task_id。
  * 命中 Friday 上游"abnormal / try again"自动重试 3 次（间隔 5s）。
  */
-export async function submitEditTask(opts: FridayEditOptions): Promise<string> {
+async function submitParts(
+  parts: GeminiPart[],
+  submitTimeoutMs = 120_000,
+): Promise<string> {
   const url = `${FRIDAY_BASE_URL}/google/models/${MODEL}:imageGenerate`;
   const body = JSON.stringify({
-    contents: [
-      {
-        parts: [
-          { text: opts.prompt },
-          {
-            inline_data: { mime_type: opts.mimeType, data: opts.imageBase64 },
-          },
-        ],
-      },
-    ],
+    contents: [{ parts }],
     generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
   });
 
-  const submitTimeout = opts.submitTimeoutMs ?? 120_000;
   let lastErr = "";
 
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -100,7 +116,7 @@ export async function submitEditTask(opts: FridayEditOptions): Promise<string> {
         method: "POST",
         headers: authHeaders(),
         body,
-        signal: AbortSignal.timeout(submitTimeout),
+        signal: AbortSignal.timeout(submitTimeoutMs),
       });
     } catch (e) {
       lastErr = e instanceof Error ? e.message : String(e);
@@ -131,6 +147,17 @@ export async function submitEditTask(opts: FridayEditOptions): Promise<string> {
     throw new FridayError(`提交任务失败：${lastErr}`);
   }
   throw new FridayError(`提交任务失败（已重试 3 次）：${lastErr}`);
+}
+
+/** 兼容老调用：提交单图编辑任务，返回 task_id。 */
+export async function submitEditTask(opts: FridayEditOptions): Promise<string> {
+  return submitParts(
+    [
+      { text: opts.prompt },
+      { inline_data: { mime_type: opts.mimeType, data: opts.imageBase64 } },
+    ],
+    opts.submitTimeoutMs,
+  );
 }
 
 interface FridayQueryResponse {
@@ -264,6 +291,47 @@ async function fetchUrlAsBase64(
 export async function editImage(
   opts: FridayEditOptions,
 ): Promise<FridayEditResult> {
-  const taskId = await submitEditTask(opts);
+  return editImageMultipart({
+    promptText: opts.prompt,
+    mainImage: { base64: opts.imageBase64, mimeType: opts.mimeType },
+    submitTimeoutMs: opts.submitTimeoutMs,
+    pollTimeoutMs: opts.pollTimeoutMs,
+    pollIntervalMs: opts.pollIntervalMs,
+  });
+}
+
+/**
+ * 多 part 一站式：prompt + 主图 + N 张参考图 → 提交 → 轮询。
+ *
+ * Gemini parts 顺序：
+ *   [text, mainImage, refImage1, refImage2, ...]
+ *
+ * prompt 内可引用 "附图1" / "附图2" 关联参考图（顺序对应 referenceImages 数组）。
+ *
+ * 用法：
+ *   const result = await editImageMultipart({
+ *     promptText: "区域1：...请参考附图1...",
+ *     mainImage: { base64: "...", mimeType: "image/jpeg" },
+ *     referenceImages: [{ base64: "...", mimeType: "image/png" }],
+ *   });
+ */
+export async function editImageMultipart(
+  opts: FridayMultipartOptions,
+): Promise<FridayEditResult> {
+  const parts: GeminiPart[] = [
+    { text: opts.promptText },
+    {
+      inline_data: {
+        mime_type: opts.mainImage.mimeType,
+        data: opts.mainImage.base64,
+      },
+    },
+  ];
+  for (const ref of opts.referenceImages ?? []) {
+    parts.push({
+      inline_data: { mime_type: ref.mimeType, data: ref.base64 },
+    });
+  }
+  const taskId = await submitParts(parts, opts.submitTimeoutMs);
   return await pollResult(taskId, opts);
 }
