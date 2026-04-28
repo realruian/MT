@@ -77,13 +77,22 @@ function StickySceneTabBar({
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
 
+  // 同步 stuck 到 body class，让 AppShell 里的 TopBar 通过 CSS 联动消失
+  useEffect(() => {
+    document.body.classList.toggle("home-sticky", stuck);
+    return () => {
+      document.body.classList.remove("home-sticky");
+    };
+  }, [stuck]);
+
   const outerCls = [
     "sticky top-0 z-40 w-full border-b transition-[background-color,border-color]",
     stuck
       ? "border-black/[0.08] bg-white/80 backdrop-blur-md duration-150"
       : "border-transparent bg-transparent duration-0",
   ].join(" ");
-  const innerCls = "mx-auto w-full max-w-[1300px] pl-[100px] pr-[40px] pt-6 pb-0";
+  // pt-[35px] + tab 内容 (24) + border-b (1) = 60px 总高
+  const innerCls = "mx-auto w-full max-w-[1300px] pl-[100px] pr-[40px] pt-[35px] pb-0";
 
   return (
     <>

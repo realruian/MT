@@ -92,6 +92,22 @@
 html {
   background-color: #f0f4ff;
   overscroll-behavior: none;
+  /* 隐藏滚动条：页面照常能滚，只是没视觉条；顺便解决 tab 切换内容左右抖动 */
+  scrollbar-width: none; /* Firefox */
+}
+html::-webkit-scrollbar {
+  display: none; /* Chrome / Safari */
+}
+
+/* 首页吸顶时 TopBar 黑色蒙层淡出，避免和白色磨砂条重叠 */
+body.home-sticky [data-topbar] {
+  background-color: transparent;
+  /* 让 60px 高的 TopBar box 不再吃点击事件，否则压在下方 sticky bar 的 tab 点不到 */
+  pointer-events: none;
+}
+/* 头像 + "业务" 文字保留可交互（虽然目前没绑事件，留着不影响） */
+body.home-sticky [data-topbar] > * {
+  pointer-events: auto;
 }
 
 body {
