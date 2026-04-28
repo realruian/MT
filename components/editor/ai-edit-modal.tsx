@@ -85,6 +85,8 @@ export function AiEditModal({
       setNaturalSize(null);
       return;
     }
+    // 先清空旧尺寸，避免新图加载期间预览框沿用旧比例闪一帧
+    setNaturalSize(null);
     let cancelled = false;
     const img = new Image();
     img.onload = () => {
@@ -99,6 +101,8 @@ export function AiEditModal({
     };
   }, [previewUrl]);
 
+  // 错误条出现时让预览缩 40px，腾出空间避免错误条被裁
+  const previewMaxH = error ? PREVIEW_MAX_H - 40 : PREVIEW_MAX_H;
   const previewBox = useMemo(() => {
     if (!naturalSize) {
       return { w: PREVIEW_MAX_W, h: Math.round(PREVIEW_MAX_W * 0.5625) };
@@ -106,12 +110,12 @@ export function AiEditModal({
     const ratio = naturalSize.w / naturalSize.h;
     let w = PREVIEW_MAX_W;
     let h = w / ratio;
-    if (h > PREVIEW_MAX_H) {
-      h = PREVIEW_MAX_H;
+    if (h > previewMaxH) {
+      h = previewMaxH;
       w = h * ratio;
     }
     return { w: Math.round(w), h: Math.round(h) };
-  }, [naturalSize]);
+  }, [naturalSize, previewMaxH]);
 
   // 当前 tab 的 region（最多 1 个）
   const currentRegion = useMemo(
@@ -267,7 +271,7 @@ export function AiEditModal({
         });
       } catch (e) {
         setError(
-          e instanceof Error ? `生成失败:${e.message}` : "生成失败，请稍后重试",
+          e instanceof Error ? `生成失败：${e.message}` : "生成失败，请稍后重试",
         );
       } finally {
         setLoading(false);
@@ -342,12 +346,12 @@ export function AiEditModal({
   }
 
   function pushHistory(entry: HistoryEntry) {
+    const nextLen = Math.min(history.length + 1, MAX_HISTORY);
     setHistory((prev) => {
       const next = [...prev, entry];
-      const trimmed = next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
-      setSelectedHistoryIdx(trimmed.length - 1);
-      return trimmed;
+      return next.length > MAX_HISTORY ? next.slice(-MAX_HISTORY) : next;
     });
+    setSelectedHistoryIdx(nextLen - 1);
   }
 
   function handleApply() {
@@ -460,7 +464,7 @@ export function AiEditModal({
           ))}
         </div>
 
-        {/* 内容区：仅预览，不滚动；空间不够时预览自动缩小 */}
+        {/* 内容区：仅预览，不滚动；错误条出现时预览自动让位 */}
         <div className="flex flex-1 flex-col gap-2 overflow-hidden px-6 py-3">
           {/* 预览区 */}
           <div className="flex justify-center">
@@ -600,7 +604,8 @@ export function AiEditModal({
           >
             {loading ? (
               <Loader2 className="size-3.5 animate-spin" />
-            ) : history.length === 0 ? (
+            ) : // 没生成过 / 改字 tab 还没画框：都叫"生成"，避免"重新生成"对应不可点状态
+            history.length === 0 || generateDisabled ? (
               "生成"
             ) : (
               "重新生成"
